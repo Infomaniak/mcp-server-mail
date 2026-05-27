@@ -38,7 +38,9 @@ export default class MailClient {
       throw new Error("No mailboxes found. Check your MAIL_TOKEN.");
     }
 
-    const mailbox = mailboxesResponse.data[0];
+    const mailbox =
+      mailboxesResponse.data.find((m) => m.is_primary) ??
+      mailboxesResponse.data[0];
     this.#mailboxUuid = mailbox.uuid;
     this.#hostingId = mailbox.hosting_id;
     this.#mailboxName = mailbox.mailbox;

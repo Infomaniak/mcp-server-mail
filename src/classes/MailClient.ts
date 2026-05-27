@@ -1,3 +1,4 @@
+import ApiClient from "./ApiClient.js";
 import {
   ApiAddress,
   ApiDraft,
@@ -12,48 +13,22 @@ import {
   EmailSummary,
   Folder,
   Mailbox,
-  RequestHeaders,
 } from "../types.js";
 
-const API_BASE = "https://mail.infomaniak.com/api";
-
 export default class MailClient {
-  readonly #headers: RequestHeaders;
+  readonly #api: ApiClient;
   #mailboxUuid: string | null = null;
   #hostingId: number | null = null; /** necessary in the future ? */
   #mailboxName: string | null = null; /** necessary in the future ? */
   #fromEmail: string | null = null;
   #fromName: string | null = null;
 
-  constructor(token: string) {
-    this.#headers = {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    };
-  }
-
-  private async apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-    const url = `${API_BASE}${path}`;
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...this.#headers,
-        ...(options.headers as Record<string, string> || {}),
-      },
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(
-        `API request failed: ${response.status} ${response.statusText}\n${text}`,
-      );
-    }
-
-    return response.json();
+  constructor(api: ApiClient) {
+    this.#api = api;
   }
 
   async init(): Promise<void> {
-    const mailboxesResponse = await this.apiRequest<ApiResponse<ApiMailbox[]>>(
+    const mailboxesResponse = await this.#api.request<ApiResponse<ApiMailbox[]>>(
       "/mailbox?with=aliases,permissions,accountId,count_users",
     );
     if (
@@ -77,7 +52,7 @@ export default class MailClient {
   }
 
   async listMailboxes(): Promise<Mailbox[]> {
-    const response = await this.apiRequest<ApiResponse<ApiMailbox[]>>(
+    const response = await this.#api.request<ApiResponse<ApiMailbox[]>>(
       "/mailbox?with=aliases,permissions,accountId,count_users",
     );
     return (response.data || []).map((m) => ({
@@ -90,7 +65,7 @@ export default class MailClient {
   }
 
   async listFolders(mailboxUuid: string): Promise<Folder[]> {
-    const response = await this.apiRequest<ApiResponse<ApiFolder[]>>(
+    const response = await this.#api.request<ApiResponse<ApiFolder[]>>(
       `/mail/${mailboxUuid}/folder?with=ik-static`,
     );
 
@@ -124,7 +99,7 @@ export default class MailClient {
     limit: number = 50,
     offset: number = 0,
   ): Promise<EmailSummary[]> {
-    const response = await this.apiRequest<ApiResponse<ApiThreadList>>(
+    const response = await this.#api.request<ApiResponse<ApiThreadList>>(
       `/mail/${mailboxUuid}/folder/${folderId}/message?offset=${offset}&thread=on&severywhere=0&limit=${limit}`,
     );
 
@@ -145,7 +120,7 @@ export default class MailClient {
     folderId: string,
     messageId: string,
   ): Promise<Email> {
-    const response = await this.apiRequest<ApiResponse<ApiMessage>>(
+    const response = await this.#api.request<ApiResponse<ApiMessage>>(
       `/mail/${mailboxUuid}/folder/${folderId}/message/${messageId}?prefered_format=html&with=auto_uncrypt,thread_context`,
     );
 
@@ -228,7 +203,7 @@ export default class MailClient {
       delay: 0,
     };
 
-    const draftResponse = await this.apiRequest<ApiResponse<ApiDraft>>(
+    const draftResponse = await this.#api.request<ApiResponse<ApiDraft>>(
       `/mail/${this.#mailboxUuid}/draft`,
       {
         method: "POST",
@@ -253,7 +228,7 @@ export default class MailClient {
       action: "send",
     };
 
-    const sendResponse = await this.apiRequest<ApiResponse<ApiDraft>>(
+    const sendResponse = await this.#api.request<ApiResponse<ApiDraft>>(
       `/mail/${this.#mailboxUuid}/draft/${draftUuid}`,
       {
         method: "PUT",

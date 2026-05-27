@@ -3,6 +3,7 @@
 import {McpServer} from "@modelcontextprotocol/sdk/server/mcp.js";
 import {StdioServerTransport} from "@modelcontextprotocol/sdk/server/stdio.js";
 import {z} from "zod";
+import ApiClient from "./classes/ApiClient.js";
 import MailClient from "./classes/MailClient.js";
 
 const MAIL_TOKEN = process.env.MAIL_TOKEN;
@@ -14,7 +15,8 @@ if (!MAIL_TOKEN) {
     process.exit(1);
 }
 
-const mailClient = new MailClient(MAIL_TOKEN);
+const apiClient = new ApiClient(MAIL_TOKEN);
+const mailClient = new MailClient(apiClient);
 
 const server = new McpServer(
     {

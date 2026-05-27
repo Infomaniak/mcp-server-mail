@@ -18,15 +18,15 @@ import {
 const API_BASE = "https://mail.infomaniak.com/api";
 
 export default class MailClient {
-  private readonly headers: RequestHeaders;
-  private mailboxUuid: string | null = null;
-  private hostingId: number | null = null; /** necessary in the future ? */
-  private mailboxName: string | null = null; /** necessary in the future ? */
-  private fromEmail: string | null = null;
-  private fromName: string | null = null;
+  readonly #headers: RequestHeaders;
+  #mailboxUuid: string | null = null;
+  #hostingId: number | null = null; /** necessary in the future ? */
+  #mailboxName: string | null = null; /** necessary in the future ? */
+  #fromEmail: string | null = null;
+  #fromName: string | null = null;
 
   constructor(token: string) {
-    this.headers = {
+    this.#headers = {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     };
@@ -37,7 +37,7 @@ export default class MailClient {
     const response = await fetch(url, {
       ...options,
       headers: {
-        ...this.headers,
+        ...this.#headers,
         ...(options.headers as Record<string, string> || {}),
       },
     });
@@ -64,16 +64,16 @@ export default class MailClient {
     }
 
     const mailbox = mailboxesResponse.data[0];
-    this.mailboxUuid = mailbox.uuid;
-    this.hostingId = mailbox.hosting_id;
-    this.mailboxName = mailbox.mailbox;
-    this.fromEmail = mailbox.email;
-    this.fromName = mailbox.email.split("@")[0];
+    this.#mailboxUuid = mailbox.uuid;
+    this.#hostingId = mailbox.hosting_id;
+    this.#mailboxName = mailbox.mailbox;
+    this.#fromEmail = mailbox.email;
+    this.#fromName = mailbox.email.split("@")[0];
   }
 
-  getMailboxUuid(): string {
-    if (!this.mailboxUuid) throw new Error("Mailbox not initialized");
-    return this.mailboxUuid;
+  get mailboxUuid(): string {
+    if (!this.#mailboxUuid) throw new Error("Mailbox not initialized");
+    return this.#mailboxUuid;
   }
 
   async listMailboxes(): Promise<Mailbox[]> {
@@ -177,7 +177,7 @@ export default class MailClient {
     cc?: string,
     bcc?: string,
   ): Promise<ApiDraft> {
-    if (!this.mailboxUuid) throw new Error("Mailbox not initialized");
+    if (!this.#mailboxUuid) throw new Error("Mailbox not initialized");
 
     const toRecipients = to.split(",").map((email) => ({
       name: "",
@@ -200,12 +200,12 @@ export default class MailClient {
       mime_type: "text/html",
       from: {
         id: null,
-        name: this.fromName,
-        email: this.fromEmail,
+        name: this.#fromName,
+        email: this.#fromEmail,
       },
       reply_to: {
-        name: this.fromName,
-        email: this.fromEmail,
+        name: this.#fromName,
+        email: this.#fromEmail,
       },
       to: toRecipients,
       cc: ccRecipients,
@@ -229,7 +229,7 @@ export default class MailClient {
     };
 
     const draftResponse = await this.apiRequest<ApiResponse<ApiDraft>>(
-      `/mail/${this.mailboxUuid}/draft`,
+      `/mail/${this.#mailboxUuid}/draft`,
       {
         method: "POST",
         body: JSON.stringify(draftPayload),
@@ -249,12 +249,12 @@ export default class MailClient {
       ...draftPayload,
       uuid: draftUuid,
       uid: draftUid,
-      resource: `/api/mail/${this.mailboxUuid}/draft/${draftUuid}`,
+      resource: `/api/mail/${this.#mailboxUuid}/draft/${draftUuid}`,
       action: "send",
     };
 
     const sendResponse = await this.apiRequest<ApiResponse<ApiDraft>>(
-      `/mail/${this.mailboxUuid}/draft/${draftUuid}`,
+      `/mail/${this.#mailboxUuid}/draft/${draftUuid}`,
       {
         method: "PUT",
         body: JSON.stringify(sendPayload),

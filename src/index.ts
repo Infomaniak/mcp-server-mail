@@ -58,7 +58,7 @@ server.tool(
             .optional(),
     },
     async ({mailbox_uuid}) => {
-        const uuid = mailbox_uuid || mailClient.getMailboxUuid();
+        const uuid = mailbox_uuid || mailClient.mailboxUuid;
         const folders = await mailClient.listFolders(uuid);
         return {
             content: [
@@ -90,7 +90,7 @@ server.tool(
             .default(0),
     },
     async ({folder_id, mailbox_uuid, limit, offset}) => {
-        const uuid = mailbox_uuid || mailClient.getMailboxUuid();
+        const uuid = mailbox_uuid || mailClient.mailboxUuid;
         const emails = await mailClient.listEmails(uuid, folder_id, limit, offset);
         return {
             content: [
@@ -115,7 +115,7 @@ server.tool(
             .optional(),
     },
     async ({folder_id, message_id, mailbox_uuid}) => {
-        const uuid = mailbox_uuid || mailClient.getMailboxUuid();
+        const uuid = mailbox_uuid || mailClient.mailboxUuid;
         const email = await mailClient.readEmail(uuid, folder_id, message_id);
         return {
             content: [

@@ -1,6 +1,6 @@
 import ApiClient from "./ApiClient.js";
+import {formatAddresses, parseRecipients} from "../helpers/addresses.js";
 import {
-  ApiAddress,
   ApiDraft,
   ApiFolder,
   ApiMailbox,
@@ -102,7 +102,7 @@ export default class MailClient {
     return (data?.threads || []).map((thread: ApiThread) => ({
       thread_uid: thread.uid,
       subject: thread.subject || "(no subject)",
-      from: thread.from?.map((f: ApiAddress) => `${f.name} <${f.email}>`).join(", ") || "",
+      from: formatAddresses(thread.from),
       date: thread.date,
       messages_count: thread.messages_count,
       unseen_messages: thread.unseen_messages,
@@ -124,10 +124,10 @@ export default class MailClient {
       uid: data.uid,
       msg_id: data.msg_id,
       subject: data.subject || "(no subject)",
-      from: data.from?.map((f: ApiAddress) => `${f.name} <${f.email}>`).join(", ") || "",
-      to: data.to?.map((t: ApiAddress) => `${t.name} <${t.email}>`).join(", ") || "",
-      cc: data.cc?.map((c: ApiAddress) => `${c.name} <${c.email}>`).join(", ") || "",
-      bcc: data.bcc?.map((b: ApiAddress) => `${b.name} <${b.email}>`).join(", ") || "",
+      from: formatAddresses(data.from),
+      to: formatAddresses(data.to),
+      cc: formatAddresses(data.cc),
+      bcc: formatAddresses(data.bcc),
       date: data.date,
       body: data.body,
       html: data.html,
@@ -149,16 +149,9 @@ export default class MailClient {
   ): Promise<ApiDraft> {
     if (!this.#mailboxUuid) throw new Error("Mailbox not initialized");
 
-    const toRecipients = to.split(",").map((email) => ({
-      name: "",
-      email: email.trim(),
-    }));
-    const ccRecipients = cc
-      ? cc.split(",").map((email) => ({name: "", email: email.trim()}))
-      : null;
-    const bccRecipients = bcc
-      ? bcc.split(",").map((email) => ({name: "", email: email.trim()}))
-      : null;
+    const toRecipients = parseRecipients(to);
+    const ccRecipients = cc ? parseRecipients(cc) : null;
+    const bccRecipients = bcc ? parseRecipients(bcc) : null;
 
     const htmlBody = `<html><body><div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 14px;">${body.replace(/\n/g, "<br>")}</div></body></html>`;
 

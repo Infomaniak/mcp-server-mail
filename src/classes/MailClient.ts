@@ -5,7 +5,6 @@ import {
   ApiFolder,
   ApiMailbox,
   ApiMessage,
-  ApiResponse,
   ApiThread,
   ApiThreadList,
   DraftPayload,
@@ -28,19 +27,14 @@ export default class MailClient {
   }
 
   async init(): Promise<void> {
-    const mailboxesResponse = await this.#api.request<ApiResponse<ApiMailbox[]>>(
+    const mailboxes = await this.#api.request<ApiMailbox[]>(
       "/mailbox?with=aliases,permissions,accountId,count_users",
     );
-    if (
-      mailboxesResponse.result !== "success" ||
-      !mailboxesResponse.data?.length
-    ) {
+    if (!mailboxes?.length) {
       throw new Error("No mailboxes found. Check your MAIL_TOKEN.");
     }
 
-    const mailbox =
-      mailboxesResponse.data.find((m) => m.is_primary) ??
-      mailboxesResponse.data[0];
+    const mailbox = mailboxes.find((m) => m.is_primary) ?? mailboxes[0];
     this.#mailboxUuid = mailbox.uuid;
     this.#hostingId = mailbox.hosting_id;
     this.#mailboxName = mailbox.mailbox;
@@ -54,10 +48,10 @@ export default class MailClient {
   }
 
   async listMailboxes(): Promise<Mailbox[]> {
-    const response = await this.#api.request<ApiResponse<ApiMailbox[]>>(
+    const mailboxes = await this.#api.request<ApiMailbox[]>(
       "/mailbox?with=aliases,permissions,accountId,count_users",
     );
-    return (response.data || []).map((m) => ({
+    return mailboxes.map((m) => ({
       uuid: m.uuid,
       email: m.email,
       mailbox: m.mailbox,
@@ -67,7 +61,7 @@ export default class MailClient {
   }
 
   async listFolders(mailboxUuid: string): Promise<Folder[]> {
-    const response = await this.#api.request<ApiResponse<ApiFolder[]>>(
+    const data = await this.#api.request<ApiFolder[]>(
       `/mail/${mailboxUuid}/folder?with=ik-static`,
     );
 
@@ -92,7 +86,7 @@ export default class MailClient {
       return result;
     };
 
-    return flatten(response.data || []);
+    return flatten(data || []);
   }
 
   async listEmails(
@@ -101,11 +95,11 @@ export default class MailClient {
     limit: number = 50,
     offset: number = 0,
   ): Promise<EmailSummary[]> {
-    const response = await this.#api.request<ApiResponse<ApiThreadList>>(
+    const data = await this.#api.request<ApiThreadList>(
       `/mail/${mailboxUuid}/folder/${folderId}/message?offset=${offset}&thread=on&severywhere=0&limit=${limit}`,
     );
 
-    return (response.data?.threads || []).map((thread: ApiThread) => ({
+    return (data?.threads || []).map((thread: ApiThread) => ({
       thread_uid: thread.uid,
       subject: thread.subject || "(no subject)",
       from: thread.from?.map((f: ApiAddress) => `${f.name} <${f.email}>`).join(", ") || "",
@@ -122,11 +116,10 @@ export default class MailClient {
     folderId: string,
     messageId: string,
   ): Promise<Email> {
-    const response = await this.#api.request<ApiResponse<ApiMessage>>(
+    const data = await this.#api.request<ApiMessage>(
       `/mail/${mailboxUuid}/folder/${folderId}/message/${messageId}?prefered_format=html&with=auto_uncrypt,thread_context`,
     );
 
-    const data = response.data;
     return {
       uid: data.uid,
       msg_id: data.msg_id,
@@ -205,7 +198,7 @@ export default class MailClient {
       delay: 0,
     };
 
-    const draftResponse = await this.#api.request<ApiResponse<ApiDraft>>(
+    const draft = await this.#api.request<ApiDraft>(
       `/mail/${this.#mailboxUuid}/draft`,
       {
         method: "POST",
@@ -213,37 +206,20 @@ export default class MailClient {
       },
     );
 
-    if (draftResponse.result !== "success") {
-      throw new Error(
-        `Failed to create draft: ${JSON.stringify(draftResponse)}`,
-      );
-    }
-
-    const draftUuid = draftResponse.data.uuid;
-    const draftUid = draftResponse.data.uid;
-
     const sendPayload: DraftPayload = {
       ...draftPayload,
-      uuid: draftUuid,
-      uid: draftUid,
-      resource: `/api/mail/${this.#mailboxUuid}/draft/${draftUuid}`,
+      uuid: draft.uuid,
+      uid: draft.uid,
+      resource: `/api/mail/${this.#mailboxUuid}/draft/${draft.uuid}`,
       action: "send",
     };
 
-    const sendResponse = await this.#api.request<ApiResponse<ApiDraft>>(
-      `/mail/${this.#mailboxUuid}/draft/${draftUuid}`,
+    return this.#api.request<ApiDraft>(
+      `/mail/${this.#mailboxUuid}/draft/${draft.uuid}`,
       {
         method: "PUT",
         body: JSON.stringify(sendPayload),
       },
     );
-
-    if (sendResponse.result !== "success") {
-      throw new Error(
-        `Failed to send email: ${JSON.stringify(sendResponse)}`,
-      );
-    }
-
-    return sendResponse.data;
   }
 }

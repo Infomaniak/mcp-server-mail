@@ -1,4 +1,4 @@
-import {RequestHeaders} from "../types.js";
+import {ApiResponse, RequestHeaders} from "../types.js";
 
 const API_BASE = "https://mail.infomaniak.com/api";
 
@@ -14,6 +14,7 @@ export default class ApiClient {
 
   async request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const url = `${API_BASE}${path}`;
+    const method = options.method ?? "GET";
     const response = await fetch(url, {
       ...options,
       headers: {
@@ -25,10 +26,14 @@ export default class ApiClient {
     if (!response.ok) {
       const text = await response.text();
       throw new Error(
-        `API request failed: ${response.status} ${response.statusText}\n${text}`,
+        `API ${method} ${path} failed: ${response.status} ${response.statusText}\n${text}`,
       );
     }
 
-    return response.json();
+    const json = await response.json() as ApiResponse<T>;
+    if (json.result !== "success") {
+      throw new Error(`API ${method} ${path} failed: ${JSON.stringify(json)}`);
+    }
+    return json.data;
   }
 }

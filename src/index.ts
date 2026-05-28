@@ -5,6 +5,7 @@ import {StdioServerTransport} from "@modelcontextprotocol/sdk/server/stdio.js";
 import {z} from "zod";
 import ApiClient from "./classes/ApiClient.js";
 import MailClient from "./classes/MailClient.js";
+import {jsonResponse} from "./helpers/responses.js";
 
 const MAIL_TOKEN = process.env.MAIL_TOKEN;
 
@@ -39,14 +40,8 @@ server.tool(
     {},
     async () => {
         const mailboxes = await mailClient.listMailboxes();
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(mailboxes, null, 2),
-                },
-            ],
-        };
+
+        return jsonResponse(mailboxes);
     },
 );
 
@@ -62,14 +57,8 @@ server.tool(
     async ({mailbox_uuid}) => {
         const uuid = mailbox_uuid || mailClient.mailboxUuid;
         const folders = await mailClient.listFolders(uuid);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(folders, null, 2),
-                },
-            ],
-        };
+
+        return jsonResponse(folders);
     },
 );
 
@@ -94,14 +83,8 @@ server.tool(
     async ({folder_id, mailbox_uuid, limit, offset}) => {
         const uuid = mailbox_uuid || mailClient.mailboxUuid;
         const emails = await mailClient.listEmails(uuid, folder_id, limit, offset);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(emails, null, 2),
-                },
-            ],
-        };
+
+        return jsonResponse(emails);
     },
 );
 
@@ -119,14 +102,8 @@ server.tool(
     async ({folder_id, message_id, mailbox_uuid}) => {
         const uuid = mailbox_uuid || mailClient.mailboxUuid;
         const email = await mailClient.readEmail(uuid, folder_id, message_id);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(email, null, 2),
-                },
-            ],
-        };
+
+        return jsonResponse(email);
     },
 );
 
@@ -150,14 +127,8 @@ server.tool(
     },
     async ({to, subject, body, cc, bcc}) => {
         const result = await mailClient.sendEmail(to, subject, body, cc, bcc);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(result, null, 2),
-                },
-            ],
-        };
+
+        return jsonResponse(result);
     },
 );
 

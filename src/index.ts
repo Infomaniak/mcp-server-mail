@@ -2,10 +2,10 @@
 
 import {McpServer} from "@modelcontextprotocol/sdk/server/mcp.js";
 import {StdioServerTransport} from "@modelcontextprotocol/sdk/server/stdio.js";
-import {z} from "zod";
 import ApiClient from "./classes/ApiClient.js";
 import MailClient from "./classes/MailClient.js";
 import {jsonResponse} from "./helpers/responses.js";
+import * as schemas from "./helpers/schemas.js";
 
 const MAIL_TOKEN = process.env.MAIL_TOKEN;
 
@@ -49,10 +49,7 @@ server.tool(
     "mail_list_folders",
     "List all folders in a mailbox",
     {
-        mailbox_uuid: z
-            .string()
-            .describe("Mailbox UUID (optional, uses primary if omitted)")
-            .optional(),
+        mailbox_uuid: schemas.mailboxUuid,
     },
     async ({mailbox_uuid}) => {
         const uuid = mailbox_uuid || mailClient.mailboxUuid;
@@ -66,19 +63,10 @@ server.tool(
     "mail_list_emails",
     "List emails in a folder",
     {
-        folder_id: z.string().describe("Folder ID (e.g., INBOX folder id)"),
-        mailbox_uuid: z
-            .string()
-            .describe("Mailbox UUID (optional, uses primary if omitted)")
-            .optional(),
-        limit: z
-            .number()
-            .describe("Maximum number of emails to return")
-            .default(50),
-        offset: z
-            .number()
-            .describe("Offset for pagination")
-            .default(0),
+        folder_id: schemas.folderId,
+        mailbox_uuid: schemas.mailboxUuid,
+        limit: schemas.limit,
+        offset: schemas.offset,
     },
     async ({folder_id, mailbox_uuid, limit, offset}) => {
         const uuid = mailbox_uuid || mailClient.mailboxUuid;
@@ -92,12 +80,9 @@ server.tool(
     "mail_read_email",
     "Read a specific email",
     {
-        folder_id: z.string().describe("Folder ID containing the email"),
-        message_id: z.string().describe("Message ID or UID"),
-        mailbox_uuid: z
-            .string()
-            .describe("Mailbox UUID (optional, uses primary if omitted)")
-            .optional(),
+        folder_id: schemas.folderId,
+        message_id: schemas.messageId,
+        mailbox_uuid: schemas.mailboxUuid,
     },
     async ({folder_id, message_id, mailbox_uuid}) => {
         const uuid = mailbox_uuid || mailClient.mailboxUuid;
@@ -111,19 +96,11 @@ server.tool(
     "mail_send_email",
     "Send an email",
     {
-        to: z
-            .string()
-            .describe("Recipient email address(es), comma-separated"),
-        subject: z.string().describe("Email subject"),
-        body: z.string().describe("Email body (plain text)"),
-        cc: z
-            .string()
-            .describe("CC recipient(s), comma-separated")
-            .optional(),
-        bcc: z
-            .string()
-            .describe("BCC recipient(s), comma-separated")
-            .optional(),
+        to: schemas.to,
+        subject: schemas.subject,
+        body: schemas.body,
+        cc: schemas.cc,
+        bcc: schemas.bcc,
     },
     async ({to, subject, body, cc, bcc}) => {
         const result = await mailClient.sendEmail(to, subject, body, cc, bcc);

@@ -2,21 +2,19 @@
 
 import {McpServer} from "@modelcontextprotocol/sdk/server/mcp.js";
 import {StdioServerTransport} from "@modelcontextprotocol/sdk/server/stdio.js";
-import ApiClient from "./classes/ApiClient.js";
-import MailClient from "./classes/MailClient.js";
-import {registerTools} from "./tools/index.js";
+import {registerTools} from "./adapters/in/mcp/tools.js";
+import HttpClient from "./adapters/out/infomaniak/HttpClient.js";
+import InfomaniakMailGateway from "./adapters/out/infomaniak/InfomaniakMailGateway.js";
 
 const MAIL_TOKEN = process.env.MAIL_TOKEN;
 
 if (!MAIL_TOKEN) {
-    console.error(
-        "Please set MAIL_TOKEN environment variable",
-    );
+    console.error("Please set MAIL_TOKEN environment variable");
     process.exit(1);
 }
 
-const apiClient = new ApiClient(MAIL_TOKEN);
-const mailClient = new MailClient(apiClient);
+const http = new HttpClient(MAIL_TOKEN);
+const gateway = new InfomaniakMailGateway(http);
 
 const server = new McpServer(
     {
@@ -33,10 +31,10 @@ const server = new McpServer(
     },
 );
 
-registerTools(server, mailClient);
+registerTools(server, gateway);
 
 async function main() {
-    await mailClient.init();
+    await gateway.getPrimaryMailbox();
     const transport = new StdioServerTransport();
     await server.connect(transport);
 }

@@ -1,5 +1,3 @@
-import {MessageBody, MessageHeader} from "./api.js";
-
 export interface Mailbox {
   uuid: string;
   email: string;
@@ -28,6 +26,16 @@ export interface EmailSummary {
   first_message_uid: string | null;
 }
 
+export interface MessageBody {
+  value: string;
+  type: string;
+}
+
+export interface MessageHeader {
+  name: string;
+  value: string;
+}
+
 export interface Email {
   uid: string;
   msg_id: string;
@@ -45,4 +53,9 @@ export interface Email {
   flagged: boolean;
   folder: string;
   headers: MessageHeader[];
+}
+
+export interface DraftResult {
+  uuid: string;
+  uid: string;
 }

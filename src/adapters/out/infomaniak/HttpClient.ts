@@ -1,9 +1,8 @@
-import {ApiResponse} from "../types/api.js";
-import {RequestHeaders} from "../types/http.js";
+import {ApiResponse, RequestHeaders} from "./types.js";
 
 const API_BASE = "https://mail.infomaniak.com/api";
 
-export default class ApiClient {
+export default class HttpClient {
   readonly #headers: RequestHeaders;
 
   constructor(token: string) {

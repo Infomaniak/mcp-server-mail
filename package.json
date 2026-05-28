@@ -8,7 +8,7 @@
   "bugs": "https://github.com/infomaniak/mcp-server-mail/issues",
   "type": "module",
   "bin": {
-    "mcp-server-mail": "dist/index.js"
+    "mcp-server-mail": "dist/main.js"
   },
   "files": [
     "dist"

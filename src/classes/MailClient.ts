@@ -7,12 +7,9 @@ import {
   ApiMessage,
   ApiThread,
   ApiThreadList,
-  DraftPayload,
-  Email,
-  EmailSummary,
-  Folder,
-  Mailbox,
-} from "../types.js";
+} from "../types/api.js";
+import {DraftPayload} from "../types/draft.js";
+import {Email, EmailSummary, Folder, Mailbox} from "../types/domain.js";
 
 export default class MailClient {
   readonly #api: ApiClient;

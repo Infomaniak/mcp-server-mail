@@ -1,4 +1,5 @@
-import {ApiAddress, DraftAddress} from "../types.js";
+import {ApiAddress} from "../types/api.js";
+import {DraftAddress} from "../types/draft.js";
 
 export function formatAddresses(addresses: ApiAddress[] | undefined | null): string {
   return addresses?.map((a) => `${a.name} <${a.email}>`).join(", ") || "";

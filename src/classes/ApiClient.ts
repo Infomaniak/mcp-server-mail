@@ -1,4 +1,5 @@
-import {ApiResponse, RequestHeaders} from "../types.js";
+import {ApiResponse} from "../types/api.js";
+import {RequestHeaders} from "../types/http.js";
 
 const API_BASE = "https://mail.infomaniak.com/api";
 

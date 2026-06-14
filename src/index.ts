@@ -8,7 +8,7 @@ import {MailClient} from "./mail-client.js";
 const server = new McpServer(
     {
         name: "Infomaniak Mail MCP Server",
-        version: "0.0.1",
+        version: "1.1.0",
     },
     {
         capabilities: {

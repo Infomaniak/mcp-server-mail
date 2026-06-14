@@ -178,7 +178,7 @@ describe("MailClient", () => {
         });
 
         await client.init();
-        assert.strictEqual(client.getMailboxUuid(), "mb-uuid");
+        assert.strictEqual(await client.getMailboxUuid(), "mb-uuid");
     });
 
     it("sendEmail creates draft and sends", async () => {

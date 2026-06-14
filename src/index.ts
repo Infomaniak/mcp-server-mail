@@ -8,7 +8,7 @@ import {MailClient} from "./mail-client.js";
 const server = new McpServer(
     {
         name: "Infomaniak Mail MCP Server",
-        version: "1.1.1",
+        version: "1.1.2",
     },
     {
         capabilities: {
@@ -20,14 +20,12 @@ const server = new McpServer(
     },
 );
 
-const token = process.env.MAIL_TOKEN ?? "mock-token";
-
-if (import.meta.url === `file://${process.argv[1]}`) {
-    if (!process.env.MAIL_TOKEN) {
-        console.error("Please set MAIL_TOKEN environment variable");
-        process.exit(1);
-    }
+if (!process.env.MAIL_TOKEN) {
+    console.error("Please set MAIL_TOKEN environment variable");
+    process.exit(1);
 }
+
+const token = process.env.MAIL_TOKEN;
 
 const mailClient = new MailClient(token);
 
@@ -172,9 +170,7 @@ async function main() {
     await server.connect(transport);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-    main().catch((error) => {
-        console.error("Fatal error in main():", error);
-        process.exit(1);
-    });
-}
+main().catch((error) => {
+    console.error("Fatal error in main():", error);
+    process.exit(1);
+});

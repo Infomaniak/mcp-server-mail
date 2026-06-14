@@ -51,7 +51,8 @@ export class MailClient {
         this.mailboxUuid = mailbox.uuid;
     }
 
-    getMailboxUuid(): string {
+    async getMailboxUuid(): Promise<string> {
+        if (!this.mailboxUuid) await this.init();
         if (!this.mailboxUuid) throw new Error("Mailbox not initialized");
         return this.mailboxUuid;
     }
@@ -94,7 +95,7 @@ export class MailClient {
     }
 
     async uploadAttachment(filePath: string, mailboxUuid?: string): Promise<string> {
-        const uuid = mailboxUuid || this.mailboxUuid;
+        const uuid = mailboxUuid || await this.getMailboxUuid();
         if (!uuid) throw new Error("Mailbox not initialized");
 
         const fileBuffer = fs.readFileSync(filePath);
@@ -230,7 +231,7 @@ export class MailClient {
         attachments?: string[],
         mailboxUuid?: string,
     ): Promise<any> {
-        const uuid = mailboxUuid || this.mailboxUuid;
+        const uuid = mailboxUuid || await this.getMailboxUuid();
         if (!uuid) throw new Error("Mailbox not initialized");
 
         const mbInfo = this.getMailboxInfo(uuid);

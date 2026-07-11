@@ -224,6 +224,85 @@ export class MailClient {
         }));
     }
 
+    async searchEmails(
+        mailboxUuid: string,
+        options: {
+            query?: string;
+            from?: string;
+            to?: string;
+            subject?: string;
+            since?: string;
+            before?: string;
+            folderId?: string;
+            limit?: number;
+            offset?: number;
+        },
+    ): Promise<any[]> {
+        const {
+            query,
+            from,
+            to,
+            subject,
+            since,
+            before,
+            folderId,
+            limit = 50,
+            offset = 0,
+        } = options;
+
+        if (!query && !from && !to && !subject && !since && !before) {
+            throw new Error(
+                "At least one search filter (query, from, to, subject, since, or before) must be provided.",
+            );
+        }
+
+        let searchFolderId = folderId;
+        let severywhere = "0";
+
+        if (!searchFolderId) {
+            severywhere = "1";
+            const folders = await this.listFolders(mailboxUuid);
+            const inbox = folders.find(
+                (f: any) => f.role === "INBOX" || f.role === "inbox",
+            );
+            if (!inbox) {
+                throw new Error("INBOX folder not found for search base.");
+            }
+            searchFolderId = inbox.id;
+        }
+
+        const params = new URLSearchParams();
+        params.set("offset", String(offset));
+        params.set("thread", "off");
+        params.set("severywhere", severywhere);
+        params.set("limit", String(limit));
+
+        if (query) params.set("scontains", query);
+        if (from) params.set("sfrom", from);
+        if (to) params.set("sto", to);
+        if (subject) params.set("ssubject", subject);
+        if (since) params.set("sfromdate", `${since} 00:00:00`);
+        if (before) params.set("stodate", `${before} 00:00:00`);
+
+        const response = await this.apiRequest(
+            `/mail/${mailboxUuid}/folder/${searchFolderId}/message?${params.toString()}`,
+        );
+
+        return (response.data?.threads || []).map((thread: any) => ({
+            thread_uid: thread.uid,
+            subject: thread.subject || "(no subject)",
+            from: thread.from?.map((f: any) => `${f.name} <${f.email}>`).join(", ") || "",
+            to: thread.to?.map((t: any) => `${t.name} <${t.email}>`).join(", ") || "",
+            date: thread.date,
+            messages_count: thread.messages_count,
+            unseen_messages: thread.unseen_messages,
+            preview: thread.messages?.[0]?.preview || "",
+            first_message_uid: thread.messages?.[0]?.uid?.split("@")[0] || null,
+            folder_id: thread.messages?.[0]?.folder_id || null,
+            folder: thread.messages?.[0]?.folder || null,
+        }));
+    }
+
     async readEmail(
         mailboxUuid: string,
         folderId: string,

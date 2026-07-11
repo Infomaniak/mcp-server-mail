@@ -106,6 +106,75 @@ server.tool(
 );
 
 server.tool(
+    "mail_search_emails",
+    "Search emails by keyword, sender, recipient, subject, or date range across all folders or within a specific folder",
+    {
+        query: z
+            .string()
+            .describe("Full-text search in message body and metadata")
+            .optional(),
+        from: z
+            .string()
+            .describe("Filter by sender email or name")
+            .optional(),
+        to: z
+            .string()
+            .describe("Filter by recipient email or name")
+            .optional(),
+        subject: z
+            .string()
+            .describe("Filter by subject")
+            .optional(),
+        since: z
+            .string()
+            .describe("Start date (YYYY-MM-DD)")
+            .optional(),
+        before: z
+            .string()
+            .describe("End date (YYYY-MM-DD)")
+            .optional(),
+        folder_id: z
+            .string()
+            .describe("Limit search to a specific folder. If omitted, searches all folders.")
+            .optional(),
+        mailbox_uuid: z
+            .string()
+            .describe("Mailbox UUID (optional, uses primary if omitted)")
+            .optional(),
+        limit: z
+            .number()
+            .describe("Maximum number of results to return")
+            .default(50),
+        offset: z
+            .number()
+            .describe("Offset for pagination")
+            .default(0),
+    },
+    async ({query, from, to, subject, since, before, folder_id, mailbox_uuid, limit, offset}) => {
+        const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
+        const results = await mailClient.searchEmails(uuid, {
+            query,
+            from,
+            to,
+            subject,
+            since,
+            before,
+            folderId: folder_id,
+            limit,
+            offset,
+        });
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: JSON.stringify(results, null, 2),
+                },
+            ],
+        };
+    },
+);
+
+server.tool(
     "mail_read_email",
     "Read a specific email",
     {

@@ -83,7 +83,23 @@ MCP Server for the Infomaniak Mail API.
 
 10. `mail_list_drafts`
     - List all drafts in the mailbox
-    - Returns: Draft threads with subject, date, and message UID
+     - Returns: Draft threads with subject, date, and message UID
+
+11. `mail_search_emails`
+    - Search emails by keyword, sender, recipient, subject, or date range
+    - Optional inputs:
+      - `query` (string): Full-text search in message body and metadata
+      - `from` (string): Filter by sender email or name
+      - `to` (string): Filter by recipient email or name
+      - `subject` (string): Filter by subject
+      - `since` (string): Start date (YYYY-MM-DD)
+      - `before` (string): End date (YYYY-MM-DD)
+      - `folder_id` (string): Limit search to a specific folder (searches all folders if omitted)
+      - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
+      - `limit` (number): Maximum results to return (default: 50)
+      - `offset` (number): Pagination offset (default: 0)
+    - Returns: List of matching emails with subject, from, to, date, preview, folder, and folder_id
+    - Note: At least one of query, from, to, subject, since, or before must be provided.
 
 ## Setup
 

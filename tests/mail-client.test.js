@@ -582,4 +582,173 @@ describe("MailClient", () => {
         assert.strictEqual(last.options.method, "DELETE");
         assert.ok(last.url.includes("draft-uuid"));
     });
+
+    it("searchEmails searches all folders with scontains when no folderId given", async () => {
+        const client = new MailClient("mock-token");
+
+        // init (needed for INBOX folder resolution)
+        fetchMock.enqueue({
+            result: "success",
+            data: [
+                {
+                    uuid: "mb-uuid",
+                    hosting_id: 123,
+                    mailbox: "test",
+                    email: "test@test.com",
+                },
+            ],
+        });
+        await client.init();
+
+        // folders response for INBOX resolution
+        fetchMock.enqueue({
+            result: "success",
+            data: [
+                { id: "inbox-id", name: "INBOX", role: "INBOX" },
+                { id: "sent-id", name: "Sent", role: "SENT" },
+            ],
+        });
+
+        // search response
+        fetchMock.enqueue({
+            result: "success",
+            data: {
+                threads: [
+                    {
+                        uid: "thread-1",
+                        subject: "Test result",
+                        from: [{ name: "Alice", email: "alice@test.com" }],
+                        to: [{ name: "Bob", email: "bob@test.com" }],
+                        date: "2026-06-21T21:36:56+0200",
+                        messages_count: 1,
+                        unseen_messages: 0,
+                        messages: [
+                            {
+                                uid: "10@eJwLTs0rAQADzwGb",
+                                preview: "Hello world",
+                                folder_id: "eJwLTs0rAQADzwGb",
+                                folder: "Sent",
+                            },
+                        ],
+                    },
+                ],
+            },
+        });
+
+        const result = await client.searchEmails("mb-uuid", { query: "test" });
+
+        const calls = fetchMock.calls();
+        // call 0 = init, call 1 = listFolders, call 2 = search
+        const searchUrl = calls[2].url;
+        assert.ok(searchUrl.includes("scontains=test"), "URL must contain scontains=test");
+        assert.ok(searchUrl.includes("severywhere=1"), "URL must contain severywhere=1");
+        assert.ok(searchUrl.includes("thread=off"), "URL must contain thread=off");
+        assert.ok(searchUrl.includes("inbox-id"), "URL path must use INBOX folder id");
+        assert.strictEqual(result.length, 1);
+        assert.strictEqual(result[0].subject, "Test result");
+        assert.strictEqual(result[0].from, "Alice <alice@test.com>");
+        assert.strictEqual(result[0].to, "Bob <bob@test.com>");
+        assert.strictEqual(result[0].folder_id, "eJwLTs0rAQADzwGb");
+        assert.strictEqual(result[0].folder, "Sent");
+        assert.strictEqual(result[0].first_message_uid, "10");
+    });
+
+    it("searchEmails searches within a specific folder when folderId given", async () => {
+        const client = new MailClient("mock-token");
+
+        // search response (no init/folders needed since folderId is provided)
+        fetchMock.enqueue({
+            result: "success",
+            data: {
+                threads: [
+                    {
+                        uid: "thread-2",
+                        subject: "Folder search",
+                        from: [{ name: "Carol", email: "carol@test.com" }],
+                        to: [{ name: "Dave", email: "dave@test.com" }],
+                        date: "2026-07-01T10:00:00+0200",
+                        messages_count: 1,
+                        unseen_messages: 1,
+                        messages: [
+                            {
+                                uid: "5@customFolderId",
+                                preview: "Folder result",
+                                folder_id: "customFolderId",
+                                folder: "Custom",
+                            },
+                        ],
+                    },
+                ],
+            },
+        });
+
+        const result = await client.searchEmails("mb-uuid", {
+            query: "folder",
+            folderId: "customFolderId",
+        });
+
+        const calls = fetchMock.calls();
+        const searchUrl = calls[0].url;
+        assert.ok(searchUrl.includes("customFolderId"), "URL path must use provided folder id");
+        assert.ok(searchUrl.includes("severywhere=0"), "URL must contain severywhere=0");
+        assert.ok(searchUrl.includes("scontains=folder"), "URL must contain scontains=folder");
+        assert.strictEqual(result.length, 1);
+        assert.strictEqual(result[0].folder, "Custom");
+    });
+
+    it("searchEmails combines multiple filters and formats dates correctly", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: {
+                threads: [
+                    {
+                        uid: "thread-3",
+                        subject: "Invoice June",
+                        from: [{ name: "Billing", email: "billing@test.com" }],
+                        to: [{ name: "Me", email: "me@test.com" }],
+                        date: "2026-06-15T08:00:00+0200",
+                        messages_count: 1,
+                        unseen_messages: 0,
+                        messages: [
+                            {
+                                uid: "20@folderEnc",
+                                preview: "Your invoice",
+                                folder_id: "folderEnc",
+                                folder: "Inbox",
+                            },
+                        ],
+                    },
+                ],
+            },
+        });
+
+        const result = await client.searchEmails("mb-uuid", {
+            query: "invoice",
+            from: "billing@test.com",
+            subject: "Invoice",
+            since: "2026-06-01",
+            before: "2026-06-30",
+            folderId: "folderEnc",
+        });
+
+        const calls = fetchMock.calls();
+        const searchUrl = calls[0].url;
+        assert.ok(searchUrl.includes("scontains=invoice"), "must have scontains");
+        assert.ok(searchUrl.includes("sfrom=billing%40test.com"), "must have sfrom");
+        assert.ok(searchUrl.includes("ssubject=Invoice"), "must have ssubject");
+        assert.ok(searchUrl.includes("sfromdate=2026-06-01+00%3A00%3A00"), "must have formatted sfromdate");
+        assert.ok(searchUrl.includes("stodate=2026-06-30+00%3A00%3A00"), "must have formatted stodate");
+        assert.strictEqual(result.length, 1);
+    });
+
+    it("searchEmails throws when no search filters are provided", async () => {
+        const client = new MailClient("mock-token");
+
+        await assert.rejects(
+            client.searchEmails("mb-uuid", {}),
+            /At least one search filter/,
+        );
+    });
 });

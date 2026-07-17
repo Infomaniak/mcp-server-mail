@@ -476,6 +476,39 @@ describe("MailClient", () => {
         assert.ok(!uid.includes("-"), "uid should be a simple sequence number");
     });
 
+    it("listEmails returns folder_id and folder so callers can read messages from multi-folder threads", async () => {
+        const client = new MailClient("mock-token");
+        fetchMock.enqueue({
+            result: "success",
+            data: {
+                threads: [
+                    {
+                        uid: "t-multi",
+                        subject: "Multi-folder thread",
+                        from: [{ name: "Alice", email: "alice@test.com" }],
+                        date: "2026-07-17T10:00:00+0200",
+                        messages_count: 2,
+                        unseen_messages: 0,
+                        messages: [
+                            {
+                                uid: "7@sentFolderId",
+                                preview: "Sent reply",
+                                folder_id: "sentFolderId",
+                                folder: "Sent",
+                            },
+                        ],
+                    },
+                ],
+            },
+        });
+
+        const result = await client.listEmails("mb", "inboxFolderId");
+
+        assert.strictEqual(result[0].first_message_uid, "7");
+        assert.strictEqual(result[0].folder_id, "sentFolderId");
+        assert.strictEqual(result[0].folder, "Sent");
+    });
+
     it("listDrafts finds folder with role DRAFT", async () => {
         const client = new MailClient("mock-token");
 

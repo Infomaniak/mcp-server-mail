@@ -221,6 +221,8 @@ export class MailClient {
             unseen_messages: thread.unseen_messages,
             preview: thread.messages?.[0]?.preview || "",
             first_message_uid: thread.messages?.[0]?.uid?.split("@")[0] || null,
+            folder_id: thread.messages?.[0]?.folder_id || null,
+            folder: thread.messages?.[0]?.folder || null,
         }));
     }
 

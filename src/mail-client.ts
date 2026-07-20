@@ -202,6 +202,72 @@ export class MailClient {
         return flatten(response.data || []);
     }
 
+    async createFolder(
+        mailboxUuid: string,
+        name: string,
+        parentFolderId?: string,
+    ): Promise<any> {
+        const payload: any = {
+            name,
+        };
+        if (parentFolderId) {
+            payload.parent = parentFolderId;
+        }
+
+        const response = await this.apiRequest(`/mail/${mailboxUuid}/folder`, {
+            method: "POST",
+            body: JSON.stringify(payload),
+        });
+
+        if (response.result !== "success") {
+            throw new Error(`Failed to create folder: ${JSON.stringify(response)}`);
+        }
+
+        return {
+            id: response.data?.id,
+            name: response.data?.name,
+            parent_folder_id: parentFolderId || null,
+        };
+    }
+
+    async deleteFolder(
+        mailboxUuid: string,
+        folderId: string,
+    ): Promise<any> {
+        const response = await this.apiRequest(`/mail/${mailboxUuid}/folder/${folderId}`, {
+            method: "DELETE",
+        });
+
+        if (response.result !== "success") {
+            throw new Error(`Failed to delete folder: ${JSON.stringify(response)}`);
+        }
+
+        return {
+            result: "success",
+            folder_id: folderId,
+        };
+    }
+
+    async renameFolder(
+        mailboxUuid: string,
+        folderId: string,
+        name: string,
+    ): Promise<any> {
+        const response = await this.apiRequest(`/mail/${mailboxUuid}/folder/${folderId}/rename`, {
+            method: "POST",
+            body: JSON.stringify({ name }),
+        });
+
+        if (response.result !== "success") {
+            throw new Error(`Failed to rename folder: ${JSON.stringify(response)}`);
+        }
+
+        return {
+            id: folderId,
+            name,
+        };
+    }
+
     async listEmails(
         mailboxUuid: string,
         folderId: string,

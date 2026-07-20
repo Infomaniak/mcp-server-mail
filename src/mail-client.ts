@@ -303,8 +303,6 @@ export class MailClient {
             subject?: string;
             since?: string;
             before?: string;
-            unseen?: boolean;
-            flagged?: boolean;
             folderId?: string;
             limit?: number;
             offset?: number;
@@ -317,8 +315,6 @@ export class MailClient {
             subject,
             since,
             before,
-            unseen,
-            flagged,
             folderId,
             limit = 50,
             offset = 0,
@@ -377,14 +373,6 @@ export class MailClient {
             folder_id: thread.messages?.[0]?.folder_id || null,
             folder: thread.messages?.[0]?.folder || null,
         }));
-
-        if (unseen !== undefined) {
-            results = results.filter((r: any) => r.seen === !unseen);
-        }
-
-        if (flagged !== undefined) {
-            results = results.filter((r: any) => r.flagged === flagged);
-        }
 
         return results;
     }

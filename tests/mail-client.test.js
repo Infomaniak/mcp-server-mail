@@ -784,4 +784,186 @@ describe("MailClient", () => {
             /At least one search filter/,
         );
     });
+
+    it("markEmails marks messages as read with correct URL and body", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({ result: "success", data: null });
+
+        const result = await client.markEmails("mb-uuid", "fid", ["1", "2"], true);
+
+        const calls = fetchMock.calls();
+        assert.strictEqual(calls[0].url, "https://mail.infomaniak.com/api/mail/mb-uuid/message/seen");
+        assert.strictEqual(calls[0].options.method, "POST");
+        const body = JSON.parse(calls[0].options.body);
+        assert.deepStrictEqual(body, { uids: ["1@fid", "2@fid"] });
+        assert.strictEqual(result.result, "success");
+        assert.strictEqual(result.marked, 2);
+        assert.strictEqual(result.read, true);
+    });
+
+    it("markEmails marks messages as unread with correct URL and body", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({ result: "success", data: null });
+
+        const result = await client.markEmails("mb-uuid", "fid", ["7"], false);
+
+        const calls = fetchMock.calls();
+        assert.strictEqual(calls[0].url, "https://mail.infomaniak.com/api/mail/mb-uuid/message/unseen");
+        const body = JSON.parse(calls[0].options.body);
+        assert.deepStrictEqual(body, { uids: ["7@fid"] });
+        assert.strictEqual(result.read, false);
+    });
+
+    it("markEmails throws when messageIds is empty", async () => {
+        const client = new MailClient("mock-token");
+
+        await assert.rejects(
+            client.markEmails("mb-uuid", "fid", [], true),
+            /At least one message_id/,
+        );
+    });
+
+    it("moveEmails sends move request with correct body", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({ result: "success", data: null });
+
+        const result = await client.moveEmails("mb-uuid", ["1", "2"], "from-fid", "to-fid");
+
+        const calls = fetchMock.calls();
+        assert.strictEqual(calls[0].url, "https://mail.infomaniak.com/api/mail/mb-uuid/message/move");
+        assert.strictEqual(calls[0].options.method, "POST");
+        const body = JSON.parse(calls[0].options.body);
+        assert.deepStrictEqual(body, {
+            uids: ["1@from-fid", "2@from-fid"],
+            to: "to-fid",
+            move_reactions: false,
+        });
+        assert.strictEqual(result.result, "success");
+        assert.strictEqual(result.moved, 2);
+        assert.strictEqual(result.to, "to-fid");
+    });
+
+    it("moveEmails throws when messageIds is empty", async () => {
+        const client = new MailClient("mock-token");
+
+        await assert.rejects(
+            client.moveEmails("mb-uuid", [], "from-fid", "to-fid"),
+            /At least one message_id/,
+        );
+    });
+
+    it("formatUids leaves UIDs containing @ unchanged", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({ result: "success", data: null });
+
+        await client.moveEmails("mb-uuid", ["5@already-formatted"], "from-fid", "to-fid");
+
+        const calls = fetchMock.calls();
+        const body = JSON.parse(calls[0].options.body);
+        assert.deepStrictEqual(body.uids, ["5@already-formatted"]);
+    });
+
+    it("archiveEmails resolves ARCHIVE folder and moves messages there", async () => {
+        const client = new MailClient("mock-token");
+
+        // folders response
+        fetchMock.enqueue({
+            result: "success",
+            data: [
+                { id: "inbox-id", name: "INBOX", separator: "/", role: "INBOX", children: [] },
+                { id: "archive-id", name: "Archives", separator: "/", role: "ARCHIVE", children: [] },
+                { id: "trash-id", name: "Trash", separator: "/", role: "TRASH", children: [] },
+            ],
+        });
+        // move response
+        fetchMock.enqueue({ result: "success", data: null });
+
+        const result = await client.archiveEmails("mb-uuid", "inbox-id", ["1", "2"]);
+
+        const calls = fetchMock.calls();
+        // call 0 = listFolders, call 1 = move
+        assert.strictEqual(calls[0].url, "https://mail.infomaniak.com/api/mail/mb-uuid/folder?with=ik-static");
+        assert.strictEqual(calls[1].url, "https://mail.infomaniak.com/api/mail/mb-uuid/message/move");
+        const body = JSON.parse(calls[1].options.body);
+        assert.deepStrictEqual(body, {
+            uids: ["1@inbox-id", "2@inbox-id"],
+            to: "archive-id",
+            move_reactions: false,
+        });
+        assert.strictEqual(result.result, "success");
+        assert.strictEqual(result.archived, 2);
+    });
+
+    it("archiveEmails throws when ARCHIVE folder is not found", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [
+                { id: "inbox-id", name: "INBOX", separator: "/", role: "INBOX", children: [] },
+            ],
+        });
+
+        await assert.rejects(
+            client.archiveEmails("mb-uuid", "inbox-id", ["1"]),
+            /ARCHIVE folder not found/,
+        );
+    });
+
+    it("deleteEmails with permanent=false moves to TRASH folder", async () => {
+        const client = new MailClient("mock-token");
+
+        // folders response
+        fetchMock.enqueue({
+            result: "success",
+            data: [
+                { id: "inbox-id", name: "INBOX", separator: "/", role: "INBOX", children: [] },
+                { id: "trash-id", name: "Trash", separator: "/", role: "TRASH", children: [] },
+            ],
+        });
+        // move response
+        fetchMock.enqueue({ result: "success", data: null });
+
+        const result = await client.deleteEmails("mb-uuid", "inbox-id", ["1"], false);
+
+        const calls = fetchMock.calls();
+        assert.strictEqual(calls[1].url, "https://mail.infomaniak.com/api/mail/mb-uuid/message/move");
+        const body = JSON.parse(calls[1].options.body);
+        assert.strictEqual(body.to, "trash-id");
+        assert.strictEqual(result.result, "success");
+        assert.strictEqual(result.deleted, 1);
+        assert.strictEqual(result.permanent, false);
+    });
+
+    it("deleteEmails with permanent=true calls message/delete directly", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({ result: "success", data: null });
+
+        const result = await client.deleteEmails("mb-uuid", "inbox-id", ["1", "2"], true);
+
+        const calls = fetchMock.calls();
+        assert.strictEqual(calls[0].url, "https://mail.infomaniak.com/api/mail/mb-uuid/message/delete");
+        assert.strictEqual(calls[0].options.method, "POST");
+        const body = JSON.parse(calls[0].options.body);
+        assert.deepStrictEqual(body, {
+            uids: ["1@inbox-id", "2@inbox-id"],
+            move_reactions: false,
+        });
+        assert.strictEqual(result.deleted, 2);
+        assert.strictEqual(result.permanent, true);
+    });
+
+    it("deleteEmails throws when messageIds is empty", async () => {
+        const client = new MailClient("mock-token");
+
+        await assert.rejects(
+            client.deleteEmails("mb-uuid", "fid", [], false),
+            /At least one message_id/,
+        );
+    });
 });

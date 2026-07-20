@@ -385,6 +385,122 @@ server.tool(
     },
 );
 
+server.tool(
+    "mail_mark_email",
+    "Mark one or more emails as read or unread",
+    {
+        folder_id: z.string().describe("Folder ID containing the messages"),
+        message_ids: z
+            .array(z.string())
+            .describe("Message sequence UIDs (numeric, without @folder_id suffix)"),
+        read: z
+            .boolean()
+            .describe("true to mark as read, false to mark as unread"),
+        mailbox_uuid: z
+            .string()
+            .describe("Mailbox UUID (optional, uses primary if omitted)")
+            .optional(),
+    },
+    async ({folder_id, message_ids, read, mailbox_uuid}) => {
+        const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
+        const result = await mailClient.markEmails(uuid, folder_id, message_ids, read);
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: JSON.stringify(result, null, 2),
+                },
+            ],
+        };
+    },
+);
+
+server.tool(
+    "mail_move_email",
+    "Move one or more emails to a different folder",
+    {
+        message_ids: z
+            .array(z.string())
+            .describe("Message sequence UIDs (numeric, without @folder_id suffix)"),
+        from_folder_id: z.string().describe("Source folder ID"),
+        to_folder_id: z.string().describe("Destination folder ID"),
+        mailbox_uuid: z
+            .string()
+            .describe("Mailbox UUID (optional, uses primary if omitted)")
+            .optional(),
+    },
+    async ({message_ids, from_folder_id, to_folder_id, mailbox_uuid}) => {
+        const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
+        const result = await mailClient.moveEmails(uuid, message_ids, from_folder_id, to_folder_id);
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: JSON.stringify(result, null, 2),
+                },
+            ],
+        };
+    },
+);
+
+server.tool(
+    "mail_archive_email",
+    "Archive one or more emails (move to the Archives folder)",
+    {
+        folder_id: z.string().describe("Folder ID currently containing the messages"),
+        message_ids: z
+            .array(z.string())
+            .describe("Message sequence UIDs (numeric, without @folder_id suffix)"),
+        mailbox_uuid: z
+            .string()
+            .describe("Mailbox UUID (optional, uses primary if omitted)")
+            .optional(),
+    },
+    async ({folder_id, message_ids, mailbox_uuid}) => {
+        const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
+        const result = await mailClient.archiveEmails(uuid, folder_id, message_ids);
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: JSON.stringify(result, null, 2),
+                },
+            ],
+        };
+    },
+);
+
+server.tool(
+    "mail_delete_email",
+    "Delete one or more emails (move to Trash by default, or permanently delete)",
+    {
+        folder_id: z.string().describe("Folder ID currently containing the messages"),
+        message_ids: z
+            .array(z.string())
+            .describe("Message sequence UIDs (numeric, without @folder_id suffix)"),
+        permanent: z
+            .boolean()
+            .describe("If true, permanently delete. If false (default), move to Trash.")
+            .default(false),
+        mailbox_uuid: z
+            .string()
+            .describe("Mailbox UUID (optional, uses primary if omitted)")
+            .optional(),
+    },
+    async ({folder_id, message_ids, permanent, mailbox_uuid}) => {
+        const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
+        const result = await mailClient.deleteEmails(uuid, folder_id, message_ids, permanent);
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: JSON.stringify(result, null, 2),
+                },
+            ],
+        };
+    },
+);
+
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);

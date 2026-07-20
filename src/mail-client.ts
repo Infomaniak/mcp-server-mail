@@ -574,4 +574,148 @@ export class MailClient {
 
         return this.listEmails(uuid, draftsFolder.id, 50, 0);
     }
+
+    private formatUids(messageIds: string[], folderId: string): string[] {
+        return messageIds.map((id) => (id.includes("@") ? id : `${id}@${folderId}`));
+    }
+
+    async markEmails(
+        mailboxUuid: string,
+        folderId: string,
+        messageIds: string[],
+        read: boolean,
+    ): Promise<any> {
+        if (!messageIds || messageIds.length === 0) {
+            throw new Error("At least one message_id must be provided.");
+        }
+
+        const endpoint = read ? "seen" : "unseen";
+        const uids = this.formatUids(messageIds, folderId);
+
+        const response = await this.apiRequest(
+            `/mail/${mailboxUuid}/message/${endpoint}`,
+            {
+                method: "POST",
+                body: JSON.stringify({ uids }),
+            },
+        );
+
+        if (response.result !== "success") {
+            throw new Error(`Failed to mark emails: ${JSON.stringify(response)}`);
+        }
+
+        return {
+            result: "success",
+            marked: uids.length,
+            read,
+        };
+    }
+
+    async moveEmails(
+        mailboxUuid: string,
+        messageIds: string[],
+        fromFolderId: string,
+        toFolderId: string,
+    ): Promise<any> {
+        if (!messageIds || messageIds.length === 0) {
+            throw new Error("At least one message_id must be provided.");
+        }
+
+        const uids = this.formatUids(messageIds, fromFolderId);
+
+        const response = await this.apiRequest(
+            `/mail/${mailboxUuid}/message/move`,
+            {
+                method: "POST",
+                body: JSON.stringify({
+                    uids,
+                    to: toFolderId,
+                    move_reactions: false,
+                }),
+            },
+        );
+
+        if (response.result !== "success") {
+            throw new Error(`Failed to move emails: ${JSON.stringify(response)}`);
+        }
+
+        return {
+            result: "success",
+            moved: uids.length,
+            to: toFolderId,
+        };
+    }
+
+    private async findFolderByRole(mailboxUuid: string, role: string): Promise<string> {
+        const folders = await this.listFolders(mailboxUuid);
+        const folder = folders.find(
+            (f: any) => f.role && f.role.toUpperCase() === role.toUpperCase(),
+        );
+        if (!folder) {
+            throw new Error(`${role} folder not found`);
+        }
+        return folder.id;
+    }
+
+    async archiveEmails(
+        mailboxUuid: string,
+        folderId: string,
+        messageIds: string[],
+    ): Promise<any> {
+        if (!messageIds || messageIds.length === 0) {
+            throw new Error("At least one message_id must be provided.");
+        }
+
+        const archiveFolderId = await this.findFolderByRole(mailboxUuid, "ARCHIVE");
+        await this.moveEmails(mailboxUuid, messageIds, folderId, archiveFolderId);
+
+        return {
+            result: "success",
+            archived: messageIds.length,
+        };
+    }
+
+    async deleteEmails(
+        mailboxUuid: string,
+        folderId: string,
+        messageIds: string[],
+        permanent: boolean = false,
+    ): Promise<any> {
+        if (!messageIds || messageIds.length === 0) {
+            throw new Error("At least one message_id must be provided.");
+        }
+
+        if (permanent) {
+            const uids = this.formatUids(messageIds, folderId);
+            const response = await this.apiRequest(
+                `/mail/${mailboxUuid}/message/delete`,
+                {
+                    method: "POST",
+                    body: JSON.stringify({
+                        uids,
+                        move_reactions: false,
+                    }),
+                },
+            );
+
+            if (response.result !== "success") {
+                throw new Error(`Failed to delete emails: ${JSON.stringify(response)}`);
+            }
+
+            return {
+                result: "success",
+                deleted: uids.length,
+                permanent: true,
+            };
+        }
+
+        const trashFolderId = await this.findFolderByRole(mailboxUuid, "TRASH");
+        await this.moveEmails(mailboxUuid, messageIds, folderId, trashFolderId);
+
+        return {
+            result: "success",
+            deleted: messageIds.length,
+            permanent: false,
+        };
+    }
 }

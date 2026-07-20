@@ -214,6 +214,10 @@ server.tool(
             .boolean()
             .describe("If true, only return unread emails. If false, only return read emails.")
             .optional(),
+        flagged: z
+            .boolean()
+            .describe("If true, only return starred/flagged emails. If false, only return unstarred emails.")
+            .optional(),
         folder_id: z
             .string()
             .describe("Limit search to a specific folder. If omitted, searches all folders.")
@@ -231,7 +235,7 @@ server.tool(
             .describe("Offset for pagination")
             .default(0),
     },
-    async ({query, from, to, subject, since, before, unseen, folder_id, mailbox_uuid, limit, offset}) => {
+    async ({query, from, to, subject, since, before, unseen, flagged, folder_id, mailbox_uuid, limit, offset}) => {
         const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
         const results = await mailClient.searchEmails(uuid, {
             query,
@@ -241,6 +245,7 @@ server.tool(
             since,
             before,
             unseen,
+            flagged,
             folderId: folder_id,
             limit,
             offset,
@@ -514,6 +519,36 @@ server.tool(
     async ({message_ids, from_folder_id, to_folder_id, mailbox_uuid}) => {
         const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
         const result = await mailClient.moveEmails(uuid, message_ids, from_folder_id, to_folder_id);
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: JSON.stringify(result, null, 2),
+                },
+            ],
+        };
+    },
+);
+
+server.tool(
+    "mail_flag_email",
+    "Flag (star) or unflag (unstar) one or more emails",
+    {
+        folder_id: z.string().describe("Folder ID containing the messages"),
+        message_ids: z
+            .array(z.string())
+            .describe("Message sequence UIDs (numeric, without @folder_id suffix)"),
+        flagged: z
+            .boolean()
+            .describe("true to star/flag, false to unstar/unflag"),
+        mailbox_uuid: z
+            .string()
+            .describe("Mailbox UUID (optional, uses primary if omitted)")
+            .optional(),
+    },
+    async ({folder_id, message_ids, flagged, mailbox_uuid}) => {
+        const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
+        const result = await mailClient.flagEmails(uuid, folder_id, message_ids, flagged);
         return {
             content: [
                 {

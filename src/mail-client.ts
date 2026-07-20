@@ -286,6 +286,7 @@ export class MailClient {
             messages_count: thread.messages_count,
             unseen_messages: thread.unseen_messages,
             seen: (thread.unseen_messages ?? 0) === 0,
+            flagged: thread.flagged ?? thread.messages?.some((m: any) => m.flagged) ?? false,
             preview: thread.messages?.[0]?.preview || "",
             first_message_uid: thread.messages?.[0]?.uid?.split("@")[0] || null,
             folder_id: thread.messages?.[0]?.folder_id || null,
@@ -303,6 +304,7 @@ export class MailClient {
             since?: string;
             before?: string;
             unseen?: boolean;
+            flagged?: boolean;
             folderId?: string;
             limit?: number;
             offset?: number;
@@ -316,6 +318,7 @@ export class MailClient {
             since,
             before,
             unseen,
+            flagged,
             folderId,
             limit = 50,
             offset = 0,
@@ -368,6 +371,7 @@ export class MailClient {
             messages_count: thread.messages_count,
             unseen_messages: thread.unseen_messages,
             seen: (thread.unseen_messages ?? 0) === 0,
+            flagged: thread.flagged ?? thread.messages?.some((m: any) => m.flagged) ?? false,
             preview: thread.messages?.[0]?.preview || "",
             first_message_uid: thread.messages?.[0]?.uid?.split("@")[0] || null,
             folder_id: thread.messages?.[0]?.folder_id || null,
@@ -376,6 +380,10 @@ export class MailClient {
 
         if (unseen !== undefined) {
             results = results.filter((r: any) => r.seen === !unseen);
+        }
+
+        if (flagged !== undefined) {
+            results = results.filter((r: any) => r.flagged === flagged);
         }
 
         return results;
@@ -719,6 +727,38 @@ export class MailClient {
             result: "success",
             moved: uids.length,
             to: toFolderId,
+        };
+    }
+
+    async flagEmails(
+        mailboxUuid: string,
+        folderId: string,
+        messageIds: string[],
+        flagged: boolean,
+    ): Promise<any> {
+        if (!messageIds || messageIds.length === 0) {
+            throw new Error("At least one message_id must be provided.");
+        }
+
+        const endpoint = flagged ? "star" : "unstar";
+        const uids = this.formatUids(messageIds, folderId);
+
+        const response = await this.apiRequest(
+            `/mail/${mailboxUuid}/message/${endpoint}`,
+            {
+                method: "POST",
+                body: JSON.stringify({ uids }),
+            },
+        );
+
+        if (response.result !== "success") {
+            throw new Error(`Failed to ${flagged ? "star" : "unstar"} emails: ${JSON.stringify(response)}`);
+        }
+
+        return {
+            result: "success",
+            flagged,
+            [flagged ? "starred" : "unstarred"]: uids.length,
         };
     }
 

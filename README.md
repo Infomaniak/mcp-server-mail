@@ -48,7 +48,7 @@ MCP Server for the Infomaniak Mail API.
      - `mailbox_uuid` (string): Mailbox UUID
      - `limit` (number): Maximum emails to return (default: 50)
      - `offset` (number): Pagination offset (default: 0)
-    - Returns: List of email threads with subject, from, date, seen status, preview
+     - Returns: List of email threads with subject, from, date, seen status, flagged status, preview
 
 7. `mail_read_email`
    - Required inputs:
@@ -56,7 +56,7 @@ MCP Server for the Infomaniak Mail API.
      - `message_id` (string): Message ID or UID
    - Optional inputs:
      - `mailbox_uuid` (string): Mailbox UUID
-   - Returns: Full email with subject, from, to, body, html, headers
+    - Returns: Full email with subject, from, to, body, html, headers, flagged status
 
 8. `mail_send_email`
    - Send an email
@@ -119,25 +119,36 @@ MCP Server for the Infomaniak Mail API.
       - `subject` (string): Filter by subject
       - `since` (string): Start date (YYYY-MM-DD)
       - `before` (string): End date (YYYY-MM-DD)
-      - `unseen` (boolean): If `true`, only return unread emails. If `false`, only return read emails.
-      - `folder_id` (string): Limit search to a specific folder (searches all folders if omitted)
+       - `unseen` (boolean): If `true`, only return unread emails. If `false`, only return read emails.
+       - `flagged` (boolean): If `true`, only return starred/flagged emails. If `false`, only return unstarred emails.
+       - `folder_id` (string): Limit search to a specific folder (searches all folders if omitted)
       - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
       - `limit` (number): Maximum results to return (default: 50)
       - `offset` (number): Pagination offset (default: 0)
-    - Returns: List of matching emails with subject, from, to, date, seen status, preview, folder, and folder_id
+     - Returns: List of matching emails with subject, from, to, date, seen status, flagged status, preview, folder, and folder_id
     - Note: At least one of query, from, to, subject, since, or before must be provided.
 
 15. `mail_mark_email`
-    - Mark one or more emails as read or unread
-    - Required inputs:
-      - `folder_id` (string): Folder ID containing the messages
-      - `message_ids` (string[]): Message sequence UIDs (from `mail_list_emails` or `mail_search_emails`)
-      - `read` (boolean): `true` to mark as read, `false` to mark as unread
-    - Optional inputs:
-      - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
-    - Returns: Confirmation with count of marked messages
+     - Mark one or more emails as read or unread
+     - Required inputs:
+       - `folder_id` (string): Folder ID containing the messages
+       - `message_ids` (string[]): Message sequence UIDs (from `mail_list_emails` or `mail_search_emails`)
+       - `read` (boolean): `true` to mark as read, `false` to mark as unread
+     - Optional inputs:
+       - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
+     - Returns: Confirmation with count of marked messages
 
-16. `mail_move_email`
+16. `mail_flag_email`
+     - Flag (star) or unflag (unstar) one or more emails
+     - Required inputs:
+       - `folder_id` (string): Folder ID containing the messages
+       - `message_ids` (string[]): Message sequence UIDs
+       - `flagged` (boolean): `true` to star/flag, `false` to unstar/unflag
+     - Optional inputs:
+       - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
+     - Returns: Confirmation with count of flagged/unflagged messages
+
+17. `mail_move_email`
     - Move one or more emails to a different folder
     - Required inputs:
       - `message_ids` (string[]): Message sequence UIDs
@@ -147,7 +158,7 @@ MCP Server for the Infomaniak Mail API.
       - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
     - Returns: Confirmation with count of moved messages
 
-17. `mail_archive_email`
+18. `mail_archive_email`
     - Archive one or more emails (move to the Archives folder)
     - Required inputs:
       - `folder_id` (string): Folder ID currently containing the messages
@@ -156,7 +167,7 @@ MCP Server for the Infomaniak Mail API.
       - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
     - Returns: Confirmation with count of archived messages
 
-18. `mail_delete_email`
+19. `mail_delete_email`
     - Delete one or more emails (move to Trash by default, or permanently delete)
     - Required inputs:
       - `folder_id` (string): Folder ID currently containing the messages

@@ -101,6 +101,45 @@ MCP Server for the Infomaniak Mail API.
     - Returns: List of matching emails with subject, from, to, date, preview, folder, and folder_id
     - Note: At least one of query, from, to, subject, since, or before must be provided.
 
+12. `mail_mark_email`
+    - Mark one or more emails as read or unread
+    - Required inputs:
+      - `folder_id` (string): Folder ID containing the messages
+      - `message_ids` (string[]): Message sequence UIDs (from `mail_list_emails` or `mail_search_emails`)
+      - `read` (boolean): `true` to mark as read, `false` to mark as unread
+    - Optional inputs:
+      - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
+    - Returns: Confirmation with count of marked messages
+
+13. `mail_move_email`
+    - Move one or more emails to a different folder
+    - Required inputs:
+      - `message_ids` (string[]): Message sequence UIDs
+      - `from_folder_id` (string): Source folder ID
+      - `to_folder_id` (string): Destination folder ID
+    - Optional inputs:
+      - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
+    - Returns: Confirmation with count of moved messages
+
+14. `mail_archive_email`
+    - Archive one or more emails (move to the Archives folder)
+    - Required inputs:
+      - `folder_id` (string): Folder ID currently containing the messages
+      - `message_ids` (string[]): Message sequence UIDs
+    - Optional inputs:
+      - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
+    - Returns: Confirmation with count of archived messages
+
+15. `mail_delete_email`
+    - Delete one or more emails (move to Trash by default, or permanently delete)
+    - Required inputs:
+      - `folder_id` (string): Folder ID currently containing the messages
+      - `message_ids` (string[]): Message sequence UIDs
+    - Optional inputs:
+      - `permanent` (boolean): If `true`, permanently delete. If `false` (default), move to Trash.
+      - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
+    - Returns: Confirmation with count of deleted messages and whether deletion was permanent
+
 ## Setup
 
 1. Create a token linked to your user:

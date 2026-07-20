@@ -117,12 +117,10 @@ MCP Server for the Infomaniak Mail API.
       - `from` (string): Filter by sender email or name
       - `to` (string): Filter by recipient email or name
       - `subject` (string): Filter by subject
-      - `since` (string): Start date (YYYY-MM-DD)
-      - `before` (string): End date (YYYY-MM-DD)
-       - `unseen` (boolean): If `true`, only return unread emails. If `false`, only return read emails.
-       - `flagged` (boolean): If `true`, only return starred/flagged emails. If `false`, only return unstarred emails.
+       - `since` (string): Start date (YYYY-MM-DD)
+       - `before` (string): End date (YYYY-MM-DD)
        - `folder_id` (string): Limit search to a specific folder (searches all folders if omitted)
-      - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
+       - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
       - `limit` (number): Maximum results to return (default: 50)
       - `offset` (number): Pagination offset (default: 0)
      - Returns: List of matching emails with subject, from, to, date, seen status, flagged status, preview, folder, and folder_id

@@ -219,6 +219,7 @@ export class MailClient {
             date: thread.date,
             messages_count: thread.messages_count,
             unseen_messages: thread.unseen_messages,
+            seen: (thread.unseen_messages ?? 0) === 0,
             preview: thread.messages?.[0]?.preview || "",
             first_message_uid: thread.messages?.[0]?.uid?.split("@")[0] || null,
             folder_id: thread.messages?.[0]?.folder_id || null,
@@ -235,6 +236,7 @@ export class MailClient {
             subject?: string;
             since?: string;
             before?: string;
+            unseen?: boolean;
             folderId?: string;
             limit?: number;
             offset?: number;
@@ -247,6 +249,7 @@ export class MailClient {
             subject,
             since,
             before,
+            unseen,
             folderId,
             limit = 50,
             offset = 0,
@@ -290,7 +293,7 @@ export class MailClient {
             `/mail/${mailboxUuid}/folder/${searchFolderId}/message?${params.toString()}`,
         );
 
-        return (response.data?.threads || []).map((thread: any) => ({
+        let results = (response.data?.threads || []).map((thread: any) => ({
             thread_uid: thread.uid,
             subject: thread.subject || "(no subject)",
             from: thread.from?.map((f: any) => `${f.name} <${f.email}>`).join(", ") || "",
@@ -298,11 +301,18 @@ export class MailClient {
             date: thread.date,
             messages_count: thread.messages_count,
             unseen_messages: thread.unseen_messages,
+            seen: (thread.unseen_messages ?? 0) === 0,
             preview: thread.messages?.[0]?.preview || "",
             first_message_uid: thread.messages?.[0]?.uid?.split("@")[0] || null,
             folder_id: thread.messages?.[0]?.folder_id || null,
             folder: thread.messages?.[0]?.folder || null,
         }));
+
+        if (unseen !== undefined) {
+            results = results.filter((r: any) => r.seen === !unseen);
+        }
+
+        return results;
     }
 
     async readEmail(

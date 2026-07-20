@@ -22,7 +22,7 @@ MCP Server for the Infomaniak Mail API.
      - `mailbox_uuid` (string): Mailbox UUID
      - `limit` (number): Maximum emails to return (default: 50)
      - `offset` (number): Pagination offset (default: 0)
-   - Returns: List of email threads with subject, from, date, preview
+    - Returns: List of email threads with subject, from, date, seen status, preview
 
 4. `mail_read_email`
    - Read a specific email
@@ -94,11 +94,12 @@ MCP Server for the Infomaniak Mail API.
       - `subject` (string): Filter by subject
       - `since` (string): Start date (YYYY-MM-DD)
       - `before` (string): End date (YYYY-MM-DD)
+      - `unseen` (boolean): If `true`, only return unread emails. If `false`, only return read emails.
       - `folder_id` (string): Limit search to a specific folder (searches all folders if omitted)
       - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
       - `limit` (number): Maximum results to return (default: 50)
       - `offset` (number): Pagination offset (default: 0)
-    - Returns: List of matching emails with subject, from, to, date, preview, folder, and folder_id
+    - Returns: List of matching emails with subject, from, to, date, seen status, preview, folder, and folder_id
     - Note: At least one of query, from, to, subject, since, or before must be provided.
 
 12. `mail_mark_email`

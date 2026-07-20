@@ -133,6 +133,10 @@ server.tool(
             .string()
             .describe("End date (YYYY-MM-DD)")
             .optional(),
+        unseen: z
+            .boolean()
+            .describe("If true, only return unread emails. If false, only return read emails.")
+            .optional(),
         folder_id: z
             .string()
             .describe("Limit search to a specific folder. If omitted, searches all folders.")
@@ -150,7 +154,7 @@ server.tool(
             .describe("Offset for pagination")
             .default(0),
     },
-    async ({query, from, to, subject, since, before, folder_id, mailbox_uuid, limit, offset}) => {
+    async ({query, from, to, subject, since, before, unseen, folder_id, mailbox_uuid, limit, offset}) => {
         const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
         const results = await mailClient.searchEmails(uuid, {
             query,
@@ -159,6 +163,7 @@ server.tool(
             subject,
             since,
             before,
+            unseen,
             folderId: folder_id,
             limit,
             offset,

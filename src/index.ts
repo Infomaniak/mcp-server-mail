@@ -74,6 +74,83 @@ server.tool(
 );
 
 server.tool(
+    "mail_create_folder",
+    "Create a new folder in the mailbox",
+    {
+        name: z.string().describe("Name of the folder to create"),
+        parent_folder_id: z
+            .string()
+            .describe("Parent folder ID (omit for root-level folder)")
+            .optional(),
+        mailbox_uuid: z
+            .string()
+            .describe("Mailbox UUID (optional, uses primary if omitted)")
+            .optional(),
+    },
+    async ({name, parent_folder_id, mailbox_uuid}) => {
+        const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
+        const result = await mailClient.createFolder(uuid, name, parent_folder_id);
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: JSON.stringify(result, null, 2),
+                },
+            ],
+        };
+    },
+);
+
+server.tool(
+    "mail_delete_folder",
+    "Delete a folder from the mailbox",
+    {
+        folder_id: z.string().describe("Folder ID to delete"),
+        mailbox_uuid: z
+            .string()
+            .describe("Mailbox UUID (optional, uses primary if omitted)")
+            .optional(),
+    },
+    async ({folder_id, mailbox_uuid}) => {
+        const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
+        const result = await mailClient.deleteFolder(uuid, folder_id);
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: JSON.stringify(result, null, 2),
+                },
+            ],
+        };
+    },
+);
+
+server.tool(
+    "mail_rename_folder",
+    "Rename a folder in the mailbox",
+    {
+        folder_id: z.string().describe("Folder ID to rename"),
+        name: z.string().describe("New folder name"),
+        mailbox_uuid: z
+            .string()
+            .describe("Mailbox UUID (optional, uses primary if omitted)")
+            .optional(),
+    },
+    async ({folder_id, name, mailbox_uuid}) => {
+        const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
+        const result = await mailClient.renameFolder(uuid, folder_id, name);
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: JSON.stringify(result, null, 2),
+                },
+            ],
+        };
+    },
+);
+
+server.tool(
     "mail_list_emails",
     "List emails in a folder",
     {

@@ -97,6 +97,67 @@ describe("MailClient", () => {
         assert.strictEqual(result[1].path, "INBOX/Sub");
     });
 
+    it("createFolder sends POST with correct payload", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({ result: "success", data: { id: "new-folder-id", name: "NewFolder" } });
+
+        const result = await client.createFolder("mb-uuid", "NewFolder");
+
+        const calls = fetchMock.calls();
+        assert.strictEqual(calls[0].url, "https://mail.infomaniak.com/api/mail/mb-uuid/folder");
+        assert.strictEqual(calls[0].options.method, "POST");
+        const body = JSON.parse(calls[0].options.body);
+        assert.strictEqual(body.name, "NewFolder");
+        assert.strictEqual(body.parent, undefined);
+        assert.strictEqual(result.id, "new-folder-id");
+        assert.strictEqual(result.name, "NewFolder");
+    });
+
+    it("createFolder with parent_folder_id sends parent in payload", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({ result: "success", data: { id: "sub-folder-id", name: "SubFolder" } });
+
+        const result = await client.createFolder("mb-uuid", "SubFolder", "parent-id");
+
+        const calls = fetchMock.calls();
+        const body = JSON.parse(calls[0].options.body);
+        assert.strictEqual(body.name, "SubFolder");
+        assert.strictEqual(body.parent, "parent-id");
+        assert.strictEqual(result.parent_folder_id, "parent-id");
+    });
+
+    it("renameFolder sends POST to /rename endpoint", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({ result: "success", data: { id: "folder-id", name: "RenamedFolder" } });
+
+        const result = await client.renameFolder("mb-uuid", "folder-id", "RenamedFolder");
+
+        const calls = fetchMock.calls();
+        assert.strictEqual(calls[0].url, "https://mail.infomaniak.com/api/mail/mb-uuid/folder/folder-id/rename");
+        assert.strictEqual(calls[0].options.method, "POST");
+        const body = JSON.parse(calls[0].options.body);
+        assert.strictEqual(body.name, "RenamedFolder");
+        assert.strictEqual(result.id, "folder-id");
+        assert.strictEqual(result.name, "RenamedFolder");
+    });
+
+    it("deleteFolder sends DELETE to correct URL", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({ result: "success", data: null });
+
+        const result = await client.deleteFolder("mb-uuid", "folder-id-to-delete");
+
+        const calls = fetchMock.calls();
+        assert.strictEqual(calls[0].url, "https://mail.infomaniak.com/api/mail/mb-uuid/folder/folder-id-to-delete");
+        assert.strictEqual(calls[0].options.method, "DELETE");
+        assert.strictEqual(result.result, "success");
+        assert.strictEqual(result.folder_id, "folder-id-to-delete");
+    });
+
     it("listEmails extracts numeric sequence number from first_message_uid", async () => {
         const client = new MailClient("mock-token");
         fetchMock.enqueue({

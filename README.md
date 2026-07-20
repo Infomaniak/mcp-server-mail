@@ -14,7 +14,33 @@ MCP Server for the Infomaniak Mail API.
      - `mailbox_uuid` (string, optional): Mailbox UUID (uses primary if omitted)
    - Returns: List of folders with id, name, path, role, unread/total counts
 
-3. `mail_list_emails`
+3. `mail_create_folder`
+   - Create a new folder in the mailbox
+   - Required inputs:
+     - `name` (string): Name of the folder to create
+   - Optional inputs:
+     - `parent_folder_id` (string): Parent folder ID (omit for root-level folder)
+     - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
+   - Returns: Created folder with id, name, and parent_folder_id
+
+4. `mail_delete_folder`
+   - Delete a folder from the mailbox
+   - Required inputs:
+     - `folder_id` (string): Folder ID to delete
+   - Optional inputs:
+     - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
+   - Returns: Deletion confirmation
+
+5. `mail_rename_folder`
+   - Rename a folder in the mailbox
+   - Required inputs:
+     - `folder_id` (string): Folder ID to rename
+     - `name` (string): New folder name
+   - Optional inputs:
+     - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
+   - Returns: Renamed folder with id and name
+
+6. `mail_list_emails`
    - List emails in a folder
    - Required inputs:
      - `folder_id` (string): Folder ID
@@ -24,8 +50,7 @@ MCP Server for the Infomaniak Mail API.
      - `offset` (number): Pagination offset (default: 0)
     - Returns: List of email threads with subject, from, date, seen status, preview
 
-4. `mail_read_email`
-   - Read a specific email
+7. `mail_read_email`
    - Required inputs:
      - `folder_id` (string): Folder ID containing the email
      - `message_id` (string): Message ID or UID
@@ -33,7 +58,7 @@ MCP Server for the Infomaniak Mail API.
      - `mailbox_uuid` (string): Mailbox UUID
    - Returns: Full email with subject, from, to, body, html, headers
 
-5. `mail_send_email`
+8. `mail_send_email`
    - Send an email
    - Required inputs:
      - `to` (string): Recipient email address(es), comma-separated
@@ -45,7 +70,7 @@ MCP Server for the Infomaniak Mail API.
      - `bcc` (string): BCC recipient(s), comma-separated
    - Returns: Send confirmation with timestamp
 
-6. `mail_create_draft`
+9. `mail_create_draft`
    - Create a new email draft
    - Required inputs:
      - `to` (string): Recipient email address(es), comma-separated
@@ -57,7 +82,7 @@ MCP Server for the Infomaniak Mail API.
      - `bcc` (string): BCC recipient(s), comma-separated
    - Returns: Draft UUID and UID for later update/send
 
-7. `mail_update_draft`
+10. `mail_update_draft`
    - Update an existing email draft (only provide fields to change)
    - Required inputs:
      - `draft_uuid` (string): Draft UUID to update
@@ -67,7 +92,7 @@ MCP Server for the Infomaniak Mail API.
      - `attachments` (string[]): Local file paths to attach
    - Returns: Updated draft info
 
-8. `mail_send_draft`
+11. `mail_send_draft`
    - Send an existing email draft
    - Required inputs:
      - `draft_uuid` (string): Draft UUID to send
@@ -75,17 +100,17 @@ MCP Server for the Infomaniak Mail API.
      - `delay` (number): Delay in seconds before sending (default: 0)
    - Returns: Send confirmation with scheduled time
 
-9. `mail_delete_draft`
+12. `mail_delete_draft`
    - Delete an email draft
    - Required inputs:
      - `draft_uuid` (string): Draft UUID to delete
    - Returns: Deletion confirmation
 
-10. `mail_list_drafts`
+13. `mail_list_drafts`
     - List all drafts in the mailbox
      - Returns: Draft threads with subject, date, and message UID
 
-11. `mail_search_emails`
+14. `mail_search_emails`
     - Search emails by keyword, sender, recipient, subject, or date range
     - Optional inputs:
       - `query` (string): Full-text search in message body and metadata
@@ -102,7 +127,7 @@ MCP Server for the Infomaniak Mail API.
     - Returns: List of matching emails with subject, from, to, date, seen status, preview, folder, and folder_id
     - Note: At least one of query, from, to, subject, since, or before must be provided.
 
-12. `mail_mark_email`
+15. `mail_mark_email`
     - Mark one or more emails as read or unread
     - Required inputs:
       - `folder_id` (string): Folder ID containing the messages
@@ -112,7 +137,7 @@ MCP Server for the Infomaniak Mail API.
       - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
     - Returns: Confirmation with count of marked messages
 
-13. `mail_move_email`
+16. `mail_move_email`
     - Move one or more emails to a different folder
     - Required inputs:
       - `message_ids` (string[]): Message sequence UIDs
@@ -122,7 +147,7 @@ MCP Server for the Infomaniak Mail API.
       - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
     - Returns: Confirmation with count of moved messages
 
-14. `mail_archive_email`
+17. `mail_archive_email`
     - Archive one or more emails (move to the Archives folder)
     - Required inputs:
       - `folder_id` (string): Folder ID currently containing the messages
@@ -131,7 +156,7 @@ MCP Server for the Infomaniak Mail API.
       - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
     - Returns: Confirmation with count of archived messages
 
-15. `mail_delete_email`
+18. `mail_delete_email`
     - Delete one or more emails (move to Trash by default, or permanently delete)
     - Required inputs:
       - `folder_id` (string): Folder ID currently containing the messages

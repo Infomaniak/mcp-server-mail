@@ -48,7 +48,7 @@ MCP Server for the Infomaniak Mail API.
      - `mailbox_uuid` (string): Mailbox UUID
      - `limit` (number): Maximum emails to return (default: 50)
      - `offset` (number): Pagination offset (default: 0)
-     - Returns: List of email threads with subject, from, date, seen status, flagged status, preview
+   - Returns: List of email threads with subject, from, date, seen status, flagged status, preview
 
 7. `mail_read_email`
    - Required inputs:
@@ -56,9 +56,27 @@ MCP Server for the Infomaniak Mail API.
      - `message_id` (string): Message ID or UID
    - Optional inputs:
      - `mailbox_uuid` (string): Mailbox UUID
-    - Returns: Full email with subject, from, to, body, html, headers, flagged status
+   - Returns: Full email with uid, msg_id, subject, from, to, cc, bcc, date, body, html, preview, seen status, flagged status, folder, folder_id, headers, and attachment metadata
 
-8. `mail_send_email`
+8. `mail_download_attachment`
+   - Download an email attachment as base64-encoded content
+   - Required inputs:
+     - `folder_id` (string): Folder ID containing the email
+     - `message_id` (string): Message ID or UID
+     - `attachment_id` (string): Attachment ID from `mail_read_email` response
+   - Optional inputs:
+     - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
+   - Returns: Attachment metadata with base64 content
+     ```json
+     {
+       "filename": "report.pdf",
+       "mime_type": "application/pdf",
+       "size": 124500,
+       "content": "JVBERi0xLjQKJdPr6eEKMSAwIG9iago8PAovVHlw..."
+     }
+     ```
+
+9. `mail_send_email`
    - Send an email
    - Required inputs:
      - `to` (string): Recipient email address(es), comma-separated
@@ -70,7 +88,7 @@ MCP Server for the Infomaniak Mail API.
      - `bcc` (string): BCC recipient(s), comma-separated
    - Returns: Send confirmation with timestamp
 
-9. `mail_create_draft`
+10. `mail_create_draft`
    - Create a new email draft
    - Required inputs:
      - `to` (string): Recipient email address(es), comma-separated
@@ -82,7 +100,7 @@ MCP Server for the Infomaniak Mail API.
      - `bcc` (string): BCC recipient(s), comma-separated
    - Returns: Draft UUID and UID for later update/send
 
-10. `mail_update_draft`
+11. `mail_update_draft`
    - Update an existing email draft (only provide fields to change)
    - Required inputs:
      - `draft_uuid` (string): Draft UUID to update
@@ -92,7 +110,7 @@ MCP Server for the Infomaniak Mail API.
      - `attachments` (string[]): Local file paths to attach
    - Returns: Updated draft info
 
-11. `mail_send_draft`
+12. `mail_send_draft`
    - Send an existing email draft
    - Required inputs:
      - `draft_uuid` (string): Draft UUID to send
@@ -100,80 +118,80 @@ MCP Server for the Infomaniak Mail API.
      - `delay` (number): Delay in seconds before sending (default: 0)
    - Returns: Send confirmation with scheduled time
 
-12. `mail_delete_draft`
+13. `mail_delete_draft`
    - Delete an email draft
    - Required inputs:
      - `draft_uuid` (string): Draft UUID to delete
    - Returns: Deletion confirmation
 
-13. `mail_list_drafts`
-    - List all drafts in the mailbox
-     - Returns: Draft threads with subject, date, and message UID
+14. `mail_list_drafts`
+   - List all drafts in the mailbox
+   - Returns: Draft threads with subject, date, and message UID
 
-14. `mail_search_emails`
-    - Search emails by keyword, sender, recipient, subject, or date range
-    - Optional inputs:
-      - `query` (string): Full-text search in message body and metadata
-      - `from` (string): Filter by sender email or name
-      - `to` (string): Filter by recipient email or name
-      - `subject` (string): Filter by subject
-       - `since` (string): Start date (YYYY-MM-DD)
-       - `before` (string): End date (YYYY-MM-DD)
-       - `folder_id` (string): Limit search to a specific folder (searches all folders if omitted)
-       - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
-      - `limit` (number): Maximum results to return (default: 50)
-      - `offset` (number): Pagination offset (default: 0)
-     - Returns: List of matching emails with subject, from, to, date, seen status, flagged status, preview, folder, and folder_id
-    - Note: At least one of query, from, to, subject, since, or before must be provided.
+15. `mail_search_emails`
+   - Search emails by keyword, sender, recipient, subject, or date range
+   - Optional inputs:
+     - `query` (string): Full-text search in message body and metadata
+     - `from` (string): Filter by sender email or name
+     - `to` (string): Filter by recipient email or name
+     - `subject` (string): Filter by subject
+     - `since` (string): Start date (YYYY-MM-DD)
+     - `before` (string): End date (YYYY-MM-DD)
+     - `folder_id` (string): Limit search to a specific folder (searches all folders if omitted)
+     - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
+     - `limit` (number): Maximum results to return (default: 50)
+     - `offset` (number): Pagination offset (default: 0)
+   - Returns: List of matching emails with subject, from, to, date, seen status, flagged status, preview, folder, and folder_id
+   - Note: At least one of query, from, to, subject, since, or before must be provided.
 
-15. `mail_mark_email`
-     - Mark one or more emails as read or unread
-     - Required inputs:
-       - `folder_id` (string): Folder ID containing the messages
-       - `message_ids` (string[]): Message sequence UIDs (from `mail_list_emails` or `mail_search_emails`)
-       - `read` (boolean): `true` to mark as read, `false` to mark as unread
-     - Optional inputs:
-       - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
-     - Returns: Confirmation with count of marked messages
+16. `mail_mark_email`
+   - Mark one or more emails as read or unread
+   - Required inputs:
+     - `folder_id` (string): Folder ID containing the messages
+     - `message_ids` (string[]): Message sequence UIDs (from `mail_list_emails` or `mail_search_emails`)
+     - `read` (boolean): `true` to mark as read, `false` to mark as unread
+   - Optional inputs:
+     - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
+   - Returns: Confirmation with count of marked messages
 
-16. `mail_flag_email`
-     - Flag (star) or unflag (unstar) one or more emails
-     - Required inputs:
-       - `folder_id` (string): Folder ID containing the messages
-       - `message_ids` (string[]): Message sequence UIDs
-       - `flagged` (boolean): `true` to star/flag, `false` to unstar/unflag
-     - Optional inputs:
-       - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
-     - Returns: Confirmation with count of flagged/unflagged messages
+17. `mail_flag_email`
+   - Flag (star) or unflag (unstar) one or more emails
+   - Required inputs:
+     - `folder_id` (string): Folder ID containing the messages
+     - `message_ids` (string[]): Message sequence UIDs
+     - `flagged` (boolean): `true` to star/flag, `false` to unstar/unflag
+   - Optional inputs:
+     - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
+   - Returns: Confirmation with count of flagged/unflagged messages
 
-17. `mail_move_email`
-    - Move one or more emails to a different folder
-    - Required inputs:
-      - `message_ids` (string[]): Message sequence UIDs
-      - `from_folder_id` (string): Source folder ID
-      - `to_folder_id` (string): Destination folder ID
-    - Optional inputs:
-      - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
-    - Returns: Confirmation with count of moved messages
+18. `mail_move_email`
+   - Move one or more emails to a different folder
+   - Required inputs:
+     - `message_ids` (string[]): Message sequence UIDs
+     - `from_folder_id` (string): Source folder ID
+     - `to_folder_id` (string): Destination folder ID
+   - Optional inputs:
+     - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
+   - Returns: Confirmation with count of moved messages
 
-18. `mail_archive_email`
-    - Archive one or more emails (move to the Archives folder)
-    - Required inputs:
-      - `folder_id` (string): Folder ID currently containing the messages
-      - `message_ids` (string[]): Message sequence UIDs
-    - Optional inputs:
-      - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
-    - Returns: Confirmation with count of archived messages
+19. `mail_archive_email`
+   - Archive one or more emails (move to the Archives folder)
+   - Required inputs:
+     - `folder_id` (string): Folder ID currently containing the messages
+     - `message_ids` (string[]): Message sequence UIDs
+   - Optional inputs:
+     - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
+   - Returns: Confirmation with count of archived messages
 
-19. `mail_delete_email`
-    - Delete one or more emails (move to Trash by default, or permanently delete)
-    - Required inputs:
-      - `folder_id` (string): Folder ID currently containing the messages
-      - `message_ids` (string[]): Message sequence UIDs
-    - Optional inputs:
-      - `permanent` (boolean): If `true`, permanently delete. If `false` (default), move to Trash.
-      - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
-    - Returns: Confirmation with count of deleted messages and whether deletion was permanent
+20. `mail_delete_email`
+   - Delete one or more emails (move to Trash by default, or permanently delete)
+   - Required inputs:
+     - `folder_id` (string): Folder ID currently containing the messages
+     - `message_ids` (string[]): Message sequence UIDs
+   - Optional inputs:
+     - `permanent` (boolean): If `true`, permanently delete. If `false` (default), move to Trash.
+     - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
+   - Returns: Confirmation with count of deleted messages and whether deletion was permanent
 
 ## Setup
 

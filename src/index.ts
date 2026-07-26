@@ -277,6 +277,32 @@ server.tool(
 );
 
 server.tool(
+    "mail_download_attachment",
+    "Download a specific attachment from an email as base64-encoded content",
+    {
+        folder_id: z.string().describe("Folder ID containing the email"),
+        message_id: z.string().describe("Message ID or UID"),
+        attachment_id: z.string().describe("Attachment ID from mail_read_email response"),
+        mailbox_uuid: z
+            .string()
+            .describe("Mailbox UUID (optional, uses primary if omitted)")
+            .optional(),
+    },
+    async ({folder_id, message_id, attachment_id, mailbox_uuid}) => {
+        const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
+        const attachment = await mailClient.downloadAttachment(uuid, folder_id, message_id, attachment_id);
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: JSON.stringify(attachment, null, 2),
+                },
+            ],
+        };
+    },
+);
+
+server.tool(
     "mail_send_email",
     "Send an email",
     {

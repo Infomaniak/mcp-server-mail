@@ -19,6 +19,9 @@ function createFetchMock() {
             throw new Error(`Unexpected fetch to ${url}`);
         }
         const response = responses.shift();
+        if (response instanceof Response) {
+            return response;
+        }
         return {
             ok: true,
             status: 200,
@@ -209,6 +212,15 @@ describe("MailClient", () => {
                 flagged: false,
                 folder: "INBOX",
                 headers: { subject: "Test Subject" },
+                attachments: [
+                    {
+                        part_id: 2,
+                        name: "test.txt",
+                        mime_type: "text/plain",
+                        size: 4,
+                        resource: "/api/mail/mb/folder/fid/message/1/attachment/2",
+                    }
+                ],
             },
         });
 
@@ -222,6 +234,154 @@ describe("MailClient", () => {
         assert.strictEqual(result.subject, "Test Subject");
         assert.strictEqual(result.from, "Sender <sender@test.com>");
         assert.strictEqual(result.to, "Receiver <receiver@test.com>");
+        assert.strictEqual(result.attachments.length, 1);
+        assert.strictEqual(result.attachments[0].id, "2");
+        assert.strictEqual(result.attachments[0].filename, "test.txt");
+        assert.strictEqual(result.attachments[0].mime_type, "text/plain");
+        assert.strictEqual(result.attachments[0].size, 4);
+        assert.strictEqual(result.attachments[0].url, "/api/mail/mb/folder/fid/message/1/attachment/2");
+    });
+
+    it("readEmail returns empty attachments when API omits field", async () => {
+        const client = new MailClient("mock-token");
+        fetchMock.enqueue({
+            result: "success",
+            data: {
+                uid: "1",
+                msg_id: "msg-456",
+                subject: "No Attachments",
+                from: [{ name: "Sender", email: "sender@test.com" }],
+                to: [{ name: "Receiver", email: "receiver@test.com" }],
+                date: "2024-01-01",
+                body: { value: "Hello", type: "text/plain" },
+                html: "<p>Hello</p>",
+                preview: "Hello",
+                has_attachments: false,
+                seen: true,
+                flagged: false,
+                folder: "INBOX",
+                headers: { subject: "No Attachments" },
+            },
+        });
+
+        const result = await client.readEmail("mb", "fid", "1");
+        assert.deepStrictEqual(result.attachments, []);
+    });
+
+    it("downloadAttachment fetches and encodes attachment", async () => {
+        const client = new MailClient("mock-token");
+
+        const mockBuffer = Buffer.from("PDF binary content");
+        fetchMock.enqueue(new Response(mockBuffer, {
+            status: 200,
+            headers: {
+                "content-type": "application/pdf",
+                "content-disposition": 'attachment; filename="report.pdf"',
+            },
+        }));
+
+        const result = await client.downloadAttachment("mb-uuid", "folder-1", "msg-123", "att-456");
+
+        const calls = fetchMock.calls();
+        assert.strictEqual(
+            calls[0].url,
+            "https://mail.infomaniak.com/api/mail/mb-uuid/folder/folder-1/message/msg-123/attachment/att-456",
+        );
+        assert.strictEqual(calls[0].options.headers.Authorization, "Bearer mock-token");
+
+        assert.strictEqual(result.filename, "report.pdf");
+        assert.strictEqual(result.mime_type, "application/pdf");
+        assert.strictEqual(result.size, 18);
+        assert.strictEqual(result.content, Buffer.from("PDF binary content").toString("base64"));
+    });
+
+    it("downloadAttachment strips charset from content-type", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue(new Response(Buffer.from("hi"), {
+            status: 200,
+            headers: {
+                "content-type": "text/plain; charset=utf-8",
+                "content-disposition": 'attachment; filename="note.txt"',
+            },
+        }));
+
+        const result = await client.downloadAttachment("mb", "f", "m", "a");
+        assert.strictEqual(result.mime_type, "text/plain");
+    });
+
+    it("downloadAttachment parses RFC 5987 encoded filename", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue(new Response(Buffer.from("hi"), {
+            status: 200,
+            headers: {
+                "content-type": "application/pdf",
+                "content-disposition": "attachment; filename*=UTF-8''r%C3%A9sum%C3%A9.pdf",
+            },
+        }));
+
+        const result = await client.downloadAttachment("mb", "f", "m", "a");
+        assert.strictEqual(result.filename, "résumé.pdf");
+    });
+
+    it("downloadAttachment falls back to attachmentId when no filename", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue(new Response(Buffer.from("hi"), {
+            status: 200,
+            headers: {
+                "content-type": "application/pdf",
+            },
+        }));
+
+        const result = await client.downloadAttachment("mb", "f", "m", "att-789");
+        assert.strictEqual(result.filename, "att-789");
+    });
+
+    it("downloadAttachment throws on 404", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue(new Response(null, {
+            status: 404,
+            statusText: "Not Found",
+        }));
+
+        await assert.rejects(
+            client.downloadAttachment("mb", "f", "m", "missing"),
+            /Attachment missing not found for message m/,
+        );
+    });
+
+    it("downloadAttachment throws on generic error", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue(new Response("server error", {
+            status: 500,
+            statusText: "Internal Server Error",
+        }));
+
+        await assert.rejects(
+            client.downloadAttachment("mb", "f", "m", "a"),
+            /Failed to download attachment: 500 Internal Server Error/,
+        );
+    });
+
+    it("downloadAttachment rejects oversized attachment via content-length", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue(new Response(Buffer.from("x"), {
+            status: 200,
+            headers: {
+                "content-type": "application/pdf",
+                "content-length": String(26 * 1024 * 1024),
+            },
+        }));
+
+        await assert.rejects(
+            client.downloadAttachment("mb", "f", "m", "a"),
+            /Attachment too large/,
+        );
     });
 
     it("init sets mailbox state from first mailbox", async () => {

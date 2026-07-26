@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const API_BASE = "https://mail.infomaniak.com/api";
+const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024;
 
 export class MailClient {
     private readonly headers: { Authorization: string; "Content-Type": string };
@@ -400,11 +401,91 @@ export class MailClient {
             html: data.html,
             preview: data.preview,
             has_attachments: data.has_attachments,
+            attachments: (data.attachments || []).map((att: any) => ({
+                id: att.resource ? att.resource.split("/").pop() : String(att.part_id),
+                filename: att.name,
+                mime_type: att.mime_type || 'application/octet-stream',
+                size: att.size || 0,
+                url: att.resource || null,
+            })),
             seen: data.seen,
             flagged: data.flagged,
             folder: data.folder,
             headers: data.headers,
         };
+    }
+
+    async downloadAttachment(
+        mailboxUuid: string,
+        folderId: string,
+        messageId: string,
+        attachmentId: string,
+    ): Promise<any> {
+        const url = `${API_BASE}/mail/${encodeURIComponent(mailboxUuid)}/folder/${encodeURIComponent(folderId)}/message/${encodeURIComponent(messageId)}/attachment/${encodeURIComponent(attachmentId)}`;
+
+        const response = await fetch(url, {
+            headers: { Authorization: this.headers.Authorization },
+        });
+
+        if (!response.ok) {
+            if (response.status === 404) {
+                throw new Error(`Attachment ${attachmentId} not found for message ${messageId}`);
+            }
+            const text = await response.text();
+            throw new Error(
+                `Failed to download attachment: ${response.status} ${response.statusText}\n${text}`,
+            );
+        }
+
+        const filename = this.parseFilename(
+            response.headers.get("content-disposition") || "",
+            attachmentId,
+        );
+
+        const contentType = response.headers.get("content-type") || "application/octet-stream";
+        const mimeType = contentType.split(";")[0].trim();
+
+        const contentLength = parseInt(response.headers.get("content-length") || "0", 10);
+        if (contentLength > MAX_ATTACHMENT_SIZE) {
+            throw new Error(
+                `Attachment too large (${contentLength} bytes, max ${MAX_ATTACHMENT_SIZE} bytes)`,
+            );
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        const size = arrayBuffer.byteLength;
+        if (size > MAX_ATTACHMENT_SIZE) {
+            throw new Error(
+                `Attachment too large (${size} bytes, max ${MAX_ATTACHMENT_SIZE} bytes)`,
+            );
+        }
+        const base64Content = Buffer.from(arrayBuffer).toString("base64");
+
+        return {
+            filename,
+            mime_type: mimeType,
+            size,
+            content: base64Content,
+        };
+    }
+
+    private parseFilename(contentDisposition: string, fallback: string): string {
+        const starMatch = contentDisposition.match(/filename\*=([^;]+)/);
+        if (starMatch) {
+            const raw = starMatch[1].trim();
+            const encodingMatch = raw.match(/([^']*)'([^']*)'(.+)/);
+            if (encodingMatch) {
+                return decodeURIComponent(encodingMatch[3]);
+            }
+            try {
+                return decodeURIComponent(raw);
+            } catch {
+                return raw;
+            }
+        }
+
+        const match = contentDisposition.match(/filename="?([^";]+)"?/);
+        return match ? match[1].trim() : fallback;
     }
 
     async sendEmail(

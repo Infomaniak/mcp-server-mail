@@ -327,9 +327,21 @@ server.tool(
             .string()
             .describe("Mailbox UUID (optional, uses primary if omitted)")
             .optional(),
+        in_reply_to: z
+            .string()
+            .describe("Message-ID of the email being replied to (for threading)")
+            .optional(),
+        in_reply_to_uid: z
+            .string()
+            .describe("UID of the email being replied to (format: 'UID@resource')")
+            .optional(),
+        references: z
+            .string()
+            .describe("References header for threading (Message-IDs, space-separated)")
+            .optional(),
     },
-    async ({to, subject, body, cc, bcc, attachments, mailbox_uuid}) => {
-        const result = await mailClient.sendEmail(to, subject, body, cc, bcc, attachments, mailbox_uuid);
+    async ({to, subject, body, cc, bcc, attachments, mailbox_uuid, in_reply_to, in_reply_to_uid, references}) => {
+        const result = await mailClient.sendEmail(to, subject, body, cc, bcc, attachments, mailbox_uuid, in_reply_to, in_reply_to_uid, references);
         return {
             content: [
                 {
@@ -362,9 +374,21 @@ server.tool(
             .string()
             .describe("Mailbox UUID (optional, uses primary if omitted)")
             .optional(),
+        in_reply_to: z
+            .string()
+            .describe("Message-ID of the email being replied to (for threading)")
+            .optional(),
+        in_reply_to_uid: z
+            .string()
+            .describe("UID of the email being replied to (format: 'UID@resource')")
+            .optional(),
+        references: z
+            .string()
+            .describe("References header for threading (Message-IDs, space-separated)")
+            .optional(),
     },
-    async ({to, subject, body, cc, bcc, mailbox_uuid}) => {
-        const result = await mailClient.createDraft(to, subject, body, cc, bcc, mailbox_uuid);
+    async ({to, subject, body, cc, bcc, mailbox_uuid, in_reply_to, in_reply_to_uid, references}) => {
+        const result = await mailClient.createDraft(to, subject, body, cc, bcc, mailbox_uuid, in_reply_to, in_reply_to_uid, references);
         return {
             content: [
                 {

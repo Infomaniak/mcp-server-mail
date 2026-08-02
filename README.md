@@ -86,19 +86,26 @@ MCP Server for the Infomaniak Mail API.
      - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
      - `cc` (string): CC recipient(s), comma-separated
      - `bcc` (string): BCC recipient(s), comma-separated
+     - `attachments` (string[]): Local file paths to attach
+     - `in_reply_to` (string): Message-ID of the email being replied to (for threading)
+     - `in_reply_to_uid` (string): UID of the email being replied to (format: `UID@resource`)
+     - `references` (string): References header for threading (Message-IDs, space-separated)
    - Returns: Send confirmation with timestamp
 
 10. `mail_create_draft`
-   - Create a new email draft
-   - Required inputs:
-     - `to` (string): Recipient email address(es), comma-separated
-     - `subject` (string): Draft subject
-     - `body` (string): Draft body (plain text)
-   - Optional inputs:
-     - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
-     - `cc` (string): CC recipient(s), comma-separated
-     - `bcc` (string): BCC recipient(s), comma-separated
-   - Returns: Draft UUID and UID for later update/send
+    - Create a new email draft
+    - Required inputs:
+      - `to` (string): Recipient email address(es), comma-separated
+      - `subject` (string): Draft subject
+      - `body` (string): Draft body (plain text)
+    - Optional inputs:
+      - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
+      - `cc` (string): CC recipient(s), comma-separated
+      - `bcc` (string): BCC recipient(s), comma-separated
+      - `in_reply_to` (string): Message-ID of the email being replied to (for threading)
+      - `in_reply_to_uid` (string): UID of the email being replied to (format: `UID@resource`)
+      - `references` (string): References header for threading (Message-IDs, space-separated)
+    - Returns: Draft UUID and UID for later update/send
 
 11. `mail_update_draft`
    - Update an existing email draft (only provide fields to change)

@@ -496,8 +496,11 @@ export class MailClient {
         bcc?: string,
         attachments?: string[],
         mailboxUuid?: string,
+        inReplyTo?: string,
+        inReplyToUid?: string,
+        references?: string,
     ): Promise<any> {
-        const draftInfo = await this.createDraft(to, subject, body, cc, bcc, mailboxUuid);
+        const draftInfo = await this.createDraft(to, subject, body, cc, bcc, mailboxUuid, inReplyTo, inReplyToUid, references);
 
         if (attachments && attachments.length > 0) {
             await this.updateDraft(draftInfo.uuid, { attachments }, mailboxUuid);
@@ -513,6 +516,9 @@ export class MailClient {
         cc?: string,
         bcc?: string,
         mailboxUuid?: string,
+        inReplyTo?: string,
+        inReplyToUid?: string,
+        references?: string,
     ): Promise<any> {
         const uuid = mailboxUuid || await this.getMailboxUuid();
         const mbInfo = this.getMailboxInfo(uuid);
@@ -542,9 +548,9 @@ export class MailClient {
             to: toRecipients,
             cc: ccRecipients,
             bcc: bccRecipients,
-            references: "",
-            in_reply_to: null,
-            in_reply_to_uid: null,
+            references: references || "",
+            in_reply_to: inReplyTo || null,
+            in_reply_to_uid: inReplyToUid || null,
             forwarded_uid: null,
             attachments: [],
             identity_id: null,

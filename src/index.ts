@@ -33,20 +33,24 @@ const token = process.env.MAIL_TOKEN;
 
 const mailClient = new MailClient(token);
 
+function buildContent(value) {
+    return {
+        content: [
+            {
+                type: "text",
+                text: JSON.stringify(value, null, 2),
+            },
+        ],
+    };
+}
+
 server.tool(
     "mail_list_mailboxes",
     "List all mailboxes in the Infomaniak account",
     {},
     async () => {
         const mailboxes = await mailClient.listMailboxes();
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(mailboxes, null, 2),
-                },
-            ],
-        };
+        return buildContent(mailboxes);
     },
 );
 
@@ -62,14 +66,7 @@ server.tool(
     async ({mailbox_uuid}) => {
         const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
         const folders = await mailClient.listFolders(uuid);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(folders, null, 2),
-                },
-            ],
-        };
+        return buildContent(folders);
     },
 );
 
@@ -90,14 +87,7 @@ server.tool(
     async ({name, parent_folder_id, mailbox_uuid}) => {
         const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
         const result = await mailClient.createFolder(uuid, name, parent_folder_id);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(result, null, 2),
-                },
-            ],
-        };
+        return buildContent(result);
     },
 );
 
@@ -114,14 +104,7 @@ server.tool(
     async ({folder_id, mailbox_uuid}) => {
         const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
         const result = await mailClient.deleteFolder(uuid, folder_id);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(result, null, 2),
-                },
-            ],
-        };
+        return buildContent(result);
     },
 );
 
@@ -139,14 +122,7 @@ server.tool(
     async ({folder_id, name, mailbox_uuid}) => {
         const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
         const result = await mailClient.renameFolder(uuid, folder_id, name);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(result, null, 2),
-                },
-            ],
-        };
+        return buildContent(result);
     },
 );
 
@@ -171,14 +147,7 @@ server.tool(
     async ({folder_id, mailbox_uuid, limit, offset}) => {
         const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
         const emails = await mailClient.listEmails(uuid, folder_id, limit, offset);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(emails, null, 2),
-                },
-            ],
-        };
+        return buildContent(emails);
     },
 );
 
@@ -240,14 +209,7 @@ server.tool(
             limit,
             offset,
         });
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(results, null, 2),
-                },
-            ],
-        };
+        return buildContent(results);
     },
 );
 
@@ -265,14 +227,7 @@ server.tool(
     async ({folder_id, message_id, mailbox_uuid}) => {
         const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
         const email = await mailClient.readEmail(uuid, folder_id, message_id);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(email, null, 2),
-                },
-            ],
-        };
+        return buildContent(email);
     },
 );
 
@@ -291,14 +246,7 @@ server.tool(
     async ({folder_id, message_id, attachment_id, mailbox_uuid}) => {
         const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
         const attachment = await mailClient.downloadAttachment(uuid, folder_id, message_id, attachment_id);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(attachment, null, 2),
-                },
-            ],
-        };
+        return buildContent(attachment);
     },
 );
 
@@ -342,14 +290,7 @@ server.tool(
     },
     async ({to, subject, body, cc, bcc, attachments, mailbox_uuid, in_reply_to, in_reply_to_uid, references}) => {
         const result = await mailClient.sendEmail(to, subject, body, cc, bcc, attachments, mailbox_uuid, in_reply_to, in_reply_to_uid, references);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(result, null, 2),
-                },
-            ],
-        };
+        return buildContent(result);
     },
 );
 
@@ -389,14 +330,7 @@ server.tool(
     },
     async ({to, subject, body, cc, bcc, mailbox_uuid, in_reply_to, in_reply_to_uid, references}) => {
         const result = await mailClient.createDraft(to, subject, body, cc, bcc, mailbox_uuid, in_reply_to, in_reply_to_uid, references);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(result, null, 2),
-                },
-            ],
-        };
+        return buildContent(result);
     },
 );
 
@@ -429,14 +363,7 @@ server.tool(
         if (attachments !== undefined) options.attachments = attachments;
         
         const result = await mailClient.updateDraft(draft_uuid, options, mailbox_uuid);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(result, null, 2),
-                },
-            ],
-        };
+        return buildContent(result);
     },
 );
 
@@ -456,14 +383,7 @@ server.tool(
     },
     async ({draft_uuid, delay, mailbox_uuid}) => {
         const result = await mailClient.sendDraft(draft_uuid, delay, mailbox_uuid);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(result, null, 2),
-                },
-            ],
-        };
+        return buildContent(result);
     },
 );
 
@@ -479,14 +399,7 @@ server.tool(
     },
     async ({draft_uuid, mailbox_uuid}) => {
         const result = await mailClient.deleteDraft(draft_uuid, mailbox_uuid);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(result, null, 2),
-                },
-            ],
-        };
+        return buildContent(result);
     },
 );
 
@@ -501,14 +414,7 @@ server.tool(
     },
     async ({mailbox_uuid}) => {
         const drafts = await mailClient.listDrafts(mailbox_uuid);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(drafts, null, 2),
-                },
-            ],
-        };
+        return buildContent(drafts);
     },
 );
 
@@ -531,14 +437,7 @@ server.tool(
     async ({folder_id, message_ids, read, mailbox_uuid}) => {
         const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
         const result = await mailClient.markEmails(uuid, folder_id, message_ids, read);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(result, null, 2),
-                },
-            ],
-        };
+        return buildContent(result);
     },
 );
 
@@ -559,14 +458,7 @@ server.tool(
     async ({message_ids, from_folder_id, to_folder_id, mailbox_uuid}) => {
         const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
         const result = await mailClient.moveEmails(uuid, message_ids, from_folder_id, to_folder_id);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(result, null, 2),
-                },
-            ],
-        };
+        return buildContent(result);
     },
 );
 
@@ -589,14 +481,7 @@ server.tool(
     async ({folder_id, message_ids, flagged, mailbox_uuid}) => {
         const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
         const result = await mailClient.flagEmails(uuid, folder_id, message_ids, flagged);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(result, null, 2),
-                },
-            ],
-        };
+        return buildContent(result);
     },
 );
 
@@ -616,14 +501,7 @@ server.tool(
     async ({folder_id, message_ids, mailbox_uuid}) => {
         const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
         const result = await mailClient.archiveEmails(uuid, folder_id, message_ids);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(result, null, 2),
-                },
-            ],
-        };
+        return buildContent(result);
     },
 );
 
@@ -647,14 +525,7 @@ server.tool(
     async ({folder_id, message_ids, permanent, mailbox_uuid}) => {
         const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
         const result = await mailClient.deleteEmails(uuid, folder_id, message_ids, permanent);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(result, null, 2),
-                },
-            ],
-        };
+        return buildContent(result);
     },
 );
 

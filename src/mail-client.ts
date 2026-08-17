@@ -509,6 +509,52 @@ export class MailClient {
         return this.sendDraft(draftInfo.uuid, 0, mailboxUuid);
     }
 
+    private parseInReplyToUid(inReplyToUid: string): { uid: string; folderId: string } {
+        const atIndex = inReplyToUid.lastIndexOf("@");
+        if (atIndex === -1) {
+            throw new Error(
+                `Invalid in_reply_to_uid format: ${inReplyToUid}. Expected format: 'UID@folder_id'`,
+            );
+        }
+        return {
+            uid: inReplyToUid.substring(0, atIndex),
+            folderId: inReplyToUid.substring(atIndex + 1),
+        };
+    }
+
+    private async resolveThreadingHeaders(
+        mailboxUuid: string,
+        inReplyToUid: string,
+    ): Promise<{ inReplyTo: string; references: string }> {
+        const { uid, folderId } = this.parseInReplyToUid(inReplyToUid);
+        const sourceEmail = await this.readEmail(mailboxUuid, folderId, uid);
+
+        const sourceMsgId = sourceEmail.msg_id;
+        if (!sourceMsgId) {
+            throw new Error(
+                `Source message ${inReplyToUid} has no msg_id; cannot build threading headers`,
+            );
+        }
+
+        const headers = (sourceEmail.headers || {}) as Record<string, string>;
+        const sourceRefs: string =
+            headers.references ||
+            headers.References ||
+            headers["References"] ||
+            headers["references"] ||
+            "";
+
+        const refParts = sourceRefs.split(/\s+/).filter((r: string) => r.length > 0);
+        if (!refParts.includes(sourceMsgId)) {
+            refParts.push(sourceMsgId);
+        }
+
+        return {
+            inReplyTo: sourceMsgId,
+            references: refParts.join(" "),
+        };
+    }
+
     async createDraft(
         to: string,
         subject: string,
@@ -524,6 +570,19 @@ export class MailClient {
         const mbInfo = this.getMailboxInfo(uuid);
         const fromEmail = mbInfo.email;
         const fromName = mbInfo.email.split("@")[0];
+
+        let resolvedInReplyTo = inReplyTo || null;
+        let resolvedReferences = references || "";
+
+        if (inReplyToUid && (!inReplyTo || !references)) {
+            const threading = await this.resolveThreadingHeaders(uuid, inReplyToUid);
+            if (!inReplyTo) {
+                resolvedInReplyTo = threading.inReplyTo;
+            }
+            if (!references) {
+                resolvedReferences = threading.references;
+            }
+        }
 
         const toRecipients = this.parseRecipients(to);
         const ccRecipients = this.parseRecipients(cc);
@@ -548,8 +607,8 @@ export class MailClient {
             to: toRecipients,
             cc: ccRecipients,
             bcc: bccRecipients,
-            references: references || "",
-            in_reply_to: inReplyTo || null,
+            references: resolvedReferences,
+            in_reply_to: resolvedInReplyTo,
             in_reply_to_uid: inReplyToUid || null,
             forwarded_uid: null,
             attachments: [],

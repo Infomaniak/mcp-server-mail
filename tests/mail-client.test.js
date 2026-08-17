@@ -800,6 +800,337 @@ describe("MailClient", () => {
         assert.strictEqual(result.etop, "2024-01-01T00:00:00+00:00");
     });
 
+    it("createDraft resolves In-Reply-To and References from in_reply_to_uid", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [{ uuid: "mb-uuid", email: "test@test.com", mailbox: "test", hosting_id: 123 }],
+        });
+        await client.init();
+
+        // source message read for threading headers
+        fetchMock.enqueue({
+            result: "success",
+            data: {
+                uid: "42",
+                msg_id: "<orig-123@example.com>",
+                subject: "Original",
+                from: [{ name: "Alice", email: "alice@test.com" }],
+                to: [{ name: "Bob", email: "bob@test.com" }],
+                date: "2026-01-01T00:00:00+0000",
+                body: { value: "Hello", type: "text/plain" },
+                html: "<p>Hello</p>",
+                preview: "Hello",
+                has_attachments: false,
+                seen: true,
+                flagged: false,
+                folder: "INBOX",
+                headers: {
+                    references: "<parent-1@example.com>",
+                },
+            },
+        });
+
+        // draft creation
+        fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
+
+        await client.createDraft(
+            "bob@test.com",
+            "Re: Original",
+            "Reply body",
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            "42@fid",
+        );
+
+        const calls = fetchMock.calls();
+        // call 0 = init, call 1 = readEmail (source), call 2 = draft POST
+        assert.strictEqual(
+            calls[1].url,
+            "https://mail.infomaniak.com/api/mail/mb-uuid/folder/fid/message/42?prefered_format=html&with=auto_uncrypt,thread_context",
+        );
+        const draftBody = JSON.parse(calls[2].options.body);
+        assert.strictEqual(draftBody.in_reply_to, "<orig-123@example.com>");
+        // References should contain parent and source msg_id (dedup)
+        assert.strictEqual(draftBody.references, "<parent-1@example.com> <orig-123@example.com>");
+        assert.strictEqual(draftBody.in_reply_to_uid, "42@fid");
+    });
+
+    it("createDraft with in_reply_to_uid appends source msg_id to existing References if missing", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [{ uuid: "mb-uuid", email: "test@test.com", mailbox: "test", hosting_id: 123 }],
+        });
+        await client.init();
+
+        fetchMock.enqueue({
+            result: "success",
+            data: {
+                uid: "7",
+                msg_id: "<reply-target@example.com>",
+                subject: "Re: Thread",
+                from: [{ name: "A", email: "a@test.com" }],
+                to: [{ name: "B", email: "b@test.com" }],
+                date: "2026-01-01",
+                body: { value: "Hi", type: "text/plain" },
+                html: "<p>Hi</p>",
+                preview: "Hi",
+                seen: true,
+                flagged: false,
+                folder: "INBOX",
+                headers: {
+                    References: "<first@example.com> <second@example.com>",
+                },
+            },
+        });
+
+        fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
+
+        await client.createDraft(
+            "a@test.com",
+            "Re: Thread",
+            "Reply",
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            "7@fid",
+        );
+
+        const calls = fetchMock.calls();
+        const draftBody = JSON.parse(calls[2].options.body);
+        assert.strictEqual(draftBody.in_reply_to, "<reply-target@example.com>");
+        assert.strictEqual(
+            draftBody.references,
+            "<first@example.com> <second@example.com> <reply-target@example.com>",
+        );
+    });
+
+    it("createDraft does not duplicate source msg_id already present in References", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [{ uuid: "mb-uuid", email: "test@test.com", mailbox: "test", hosting_id: 123 }],
+        });
+        await client.init();
+
+        fetchMock.enqueue({
+            result: "success",
+            data: {
+                uid: "9",
+                msg_id: "<dup@example.com>",
+                subject: "Re: Thread",
+                from: [{ name: "A", email: "a@test.com" }],
+                to: [{ name: "B", email: "b@test.com" }],
+                date: "2026-01-01",
+                body: { value: "Hi", type: "text/plain" },
+                html: "<p>Hi</p>",
+                preview: "Hi",
+                seen: true,
+                flagged: false,
+                folder: "INBOX",
+                headers: {
+                    references: "<parent@example.com> <dup@example.com>",
+                },
+            },
+        });
+
+        fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
+
+        await client.createDraft(
+            "a@test.com",
+            "Re: Thread",
+            "Reply",
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            "9@fid",
+        );
+
+        const calls = fetchMock.calls();
+        const draftBody = JSON.parse(calls[2].options.body);
+        assert.strictEqual(draftBody.in_reply_to, "<dup@example.com>");
+        assert.strictEqual(
+            draftBody.references,
+            "<parent@example.com> <dup@example.com>",
+        );
+    });
+
+    it("createDraft prefers explicit in_reply_to/references over resolved-from-uid", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [{ uuid: "mb-uuid", email: "test@test.com", mailbox: "test", hosting_id: 123 }],
+        });
+        await client.init();
+
+        // No source read should happen since both explicit headers are provided
+        fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
+
+        await client.createDraft(
+            "a@test.com",
+            "Re: Original",
+            "Reply",
+            undefined,
+            undefined,
+            undefined,
+            "<explicit-in-reply-to@example.com>",
+            "42@fid",
+            "<explicit-ref@example.com>",
+        );
+
+        const calls = fetchMock.calls();
+        // init + draft POST only; no source read
+        assert.strictEqual(calls.length, 2);
+        const draftBody = JSON.parse(calls[1].options.body);
+        assert.strictEqual(draftBody.in_reply_to, "<explicit-in-reply-to@example.com>");
+        assert.strictEqual(draftBody.references, "<explicit-ref@example.com>");
+        assert.strictEqual(draftBody.in_reply_to_uid, "42@fid");
+    });
+
+    it("createDraft resolves References from uid when only in_reply_to is explicit", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [{ uuid: "mb-uuid", email: "test@test.com", mailbox: "test", hosting_id: 123 }],
+        });
+        await client.init();
+
+        fetchMock.enqueue({
+            result: "success",
+            data: {
+                uid: "42",
+                msg_id: "<resolved@example.com>",
+                subject: "Original",
+                from: [{ name: "A", email: "a@test.com" }],
+                to: [{ name: "B", email: "b@test.com" }],
+                date: "2026-01-01",
+                body: { value: "Hi", type: "text/plain" },
+                html: "<p>Hi</p>",
+                preview: "Hi",
+                seen: true,
+                flagged: false,
+                folder: "INBOX",
+                headers: { references: "<parent@example.com>" },
+            },
+        });
+
+        fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
+
+        await client.createDraft(
+            "a@test.com",
+            "Re: Original",
+            "Reply",
+            undefined,
+            undefined,
+            undefined,
+            "<explicit-in-reply-to@example.com>",
+            "42@fid",
+        );
+
+        const calls = fetchMock.calls();
+        const draftBody = JSON.parse(calls[2].options.body);
+        // explicit in_reply_to preserved
+        assert.strictEqual(draftBody.in_reply_to, "<explicit-in-reply-to@example.com>");
+        // references resolved from source
+        assert.strictEqual(draftBody.references, "<parent@example.com> <resolved@example.com>");
+    });
+
+    it("createDraft rejects in_reply_to_uid with missing msg_id", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [{ uuid: "mb-uuid", email: "test@test.com", mailbox: "test", hosting_id: 123 }],
+        });
+        await client.init();
+
+        fetchMock.enqueue({
+            result: "success",
+            data: {
+                uid: "42",
+                msg_id: null,
+                subject: "Original",
+                from: [{ name: "A", email: "a@test.com" }],
+                to: [{ name: "B", email: "b@test.com" }],
+                date: "2026-01-01",
+                body: { value: "Hi", type: "text/plain" },
+                html: "<p>Hi</p>",
+                preview: "Hi",
+                seen: true,
+                flagged: false,
+                folder: "INBOX",
+                headers: {},
+            },
+        });
+
+        await assert.rejects(
+            client.createDraft(
+                "a@test.com",
+                "Re: Original",
+                "Reply",
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                "42@fid",
+            ),
+            /cannot build threading headers/,
+        );
+    });
+
+    it("createDraft rejects invalid in_reply_to_uid format", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [{ uuid: "mb-uuid", email: "test@test.com", mailbox: "test", hosting_id: 123 }],
+        });
+        await client.init();
+
+        await assert.rejects(
+            client.createDraft(
+                "a@test.com",
+                "Re: Original",
+                "Reply",
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                "invalid-uid-no-at-sign",
+            ),
+            /Invalid in_reply_to_uid format/,
+        );
+    });
+
+    it("createDraft without in_reply_to_uid skips threading resolution", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [{ uuid: "mb-uuid", email: "test@test.com", mailbox: "test", hosting_id: 123 }],
+        });
+        await client.init();
+
+        fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
+
+        await client.createDraft("a@test.com", "Subject", "Body");
+
+        const calls = fetchMock.calls();
+        // init + draft POST only, no readEmail call
+        assert.strictEqual(calls.length, 2);
+        assert.ok(!calls.some((c) => c.url.includes("/message/")), "should not read source message");
+    });
+
     it("updateDraft modifies draft fields", async () => {
         const client = new MailClient("mock-token");
 

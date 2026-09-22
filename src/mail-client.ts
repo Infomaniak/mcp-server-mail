@@ -101,6 +101,7 @@ export class MailClient {
             ".pdf": "application/pdf",
             ".txt": "text/plain",
             ".html": "text/html",
+            ".ics": "text/calendar",
             ".csv": "text/csv",
             ".doc": "application/msword",
             ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

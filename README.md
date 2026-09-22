@@ -87,10 +87,12 @@ MCP Server for the Infomaniak Mail API.
      - `cc` (string): CC recipient(s), comma-separated
      - `bcc` (string): BCC recipient(s), comma-separated
      - `attachments` (string[]): Local file paths to attach
-     - `in_reply_to` (string): Message-ID of the email being replied to (for threading)
-     - `in_reply_to_uid` (string): UID of the email being replied to (format: `UID@resource`)
-     - `references` (string): References header for threading (Message-IDs, space-separated)
-   - Returns: Send confirmation with timestamp
+      - `in_reply_to` (string): Message-ID of the email being replied to (for threading)
+      - `in_reply_to_uid` (string): UID of the email being replied to (format: `UID@resource`)
+      - `references` (string): References header for threading (Message-IDs, space-separated)
+      - `from_email` (string): Sending address — the mailbox address or one of its aliases (defaults to the mailbox address). Requires a sending identity (kMail signature) for that address; otherwise the API sends from the default identity address instead (a warning is returned)
+      - `from_name` (string): Preferred sender display name. The displayed name always comes from the sending identity (matched by name) or, by default, the account profile name
+    - Returns: Send confirmation with timestamp
 
 10. `mail_create_draft`
     - Create a new email draft
@@ -105,7 +107,9 @@ MCP Server for the Infomaniak Mail API.
       - `in_reply_to` (string): Message-ID of the email being replied to (for threading)
       - `in_reply_to_uid` (string): UID of the email being replied to (format: `UID@resource`)
       - `references` (string): References header for threading (Message-IDs, space-separated)
-    - Returns: Draft UUID and UID for later update/send
+      - `from_email` (string): Sending address — the mailbox address or one of its aliases (defaults to the mailbox address). Requires a sending identity (kMail signature) for that address; otherwise the API sends from the default identity address instead (a warning is returned)
+      - `from_name` (string): Preferred sender display name. The displayed name always comes from the sending identity (matched by name) or, by default, the account profile name
+    - Returns: Draft UUID and UID for later update/send, plus `resolved_from` (effective sender) and `warnings` when applicable
 
 11. `mail_update_draft`
    - Update an existing email draft (only provide fields to change)

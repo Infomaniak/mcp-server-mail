@@ -419,6 +419,9 @@ describe("MailClient", () => {
         });
         await client.init();
 
+        // identity lookup (fails here, falls back to the mailbox local part)
+        fetchMock.enqueue(new Response("{}", { status: 403 }));
+
         // draft create + send
         fetchMock.enqueue({
             result: "success",
@@ -437,20 +440,20 @@ describe("MailClient", () => {
         );
 
         const calls = fetchMock.calls();
-        // call 1 = init, call 2 = draft POST
+        // call 1 = identities lookup, call 2 = draft POST
         assert.strictEqual(
-            calls[1].url,
+            calls[2].url,
             "https://mail.infomaniak.com/api/mail/mb-uuid/draft",
         );
-        assert.strictEqual(calls[1].options.method, "POST");
+        assert.strictEqual(calls[2].options.method, "POST");
 
-        const draftBody = JSON.parse(calls[1].options.body);
+        const draftBody = JSON.parse(calls[2].options.body);
         assert.deepStrictEqual(draftBody.to, [{ name: "", email: "to@test.com" }]);
         assert.strictEqual(draftBody.subject, "Test Subject");
         assert.strictEqual(draftBody.from.email, "test@test.com");
 
-        // call 2 = draft send
-        const sendBody = JSON.parse(calls[2].options.body);
+        // call 3 = draft send
+        const sendBody = JSON.parse(calls[3].options.body);
         assert.strictEqual(sendBody.action, "send");
         assert.strictEqual(result.etop, "2024-01-01T00:00:00+00:00");
     });
@@ -472,6 +475,9 @@ describe("MailClient", () => {
         });
         await client.init();
 
+        // identity lookup (fails here, falls back to the mailbox local part)
+        fetchMock.enqueue(new Response("{}", { status: 403 }));
+
         // draft create + send
         fetchMock.enqueue({
             result: "success",
@@ -491,7 +497,7 @@ describe("MailClient", () => {
         );
 
         const calls = fetchMock.calls();
-        const draftBody = JSON.parse(calls[1].options.body);
+        const draftBody = JSON.parse(calls[2].options.body);
         assert.deepStrictEqual(draftBody.to, [
             { name: "", email: "a@test.com" },
             { name: "", email: "b@test.com" },
@@ -516,6 +522,9 @@ describe("MailClient", () => {
         });
         await client.init();
 
+        // identity lookup (fails here, falls back to the mailbox local part)
+        fetchMock.enqueue(new Response("{}", { status: 403 }));
+
         fetchMock.enqueue({
             result: "success",
             data: { uuid: "draft-uuid", uid: "draft-uid" },
@@ -533,7 +542,7 @@ describe("MailClient", () => {
         );
 
         const calls = fetchMock.calls();
-        const draftBody = JSON.parse(calls[1].options.body);
+        const draftBody = JSON.parse(calls[2].options.body);
         assert.deepStrictEqual(draftBody.to, [
             { name: "", email: "a@test.com" },
             { name: "", email: "b@test.com" },
@@ -557,6 +566,9 @@ describe("MailClient", () => {
         });
         await client.init();
 
+        // identity lookup (fails here, falls back to the mailbox local part)
+        fetchMock.enqueue(new Response("{}", { status: 403 }));
+
         fetchMock.enqueue({
             result: "success",
             data: { uuid: "draft-uuid", uid: "draft-uid" },
@@ -569,7 +581,7 @@ describe("MailClient", () => {
         );
 
         const calls = fetchMock.calls();
-        const draftBody = JSON.parse(calls[1].options.body);
+        const draftBody = JSON.parse(calls[2].options.body);
         assert.ok(
             draftBody.body.includes(
                 "&lt;script&gt;alert(&#39;x&#39;)&lt;/script&gt;<br>Tom &amp; Jerry &quot;quote&quot;",
@@ -579,6 +591,358 @@ describe("MailClient", () => {
             !draftBody.body.includes("<script>"),
             "plain text body should not be interpreted as HTML",
         );
+    });
+
+    it("createDraft resolves default display name from the mailbox identity", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [{ uuid: "mb-uuid", email: "test@test.com", mailbox: "test", hosting_id: 123 }],
+        });
+        await client.init();
+
+        // identities lookup
+        fetchMock.enqueue({
+            result: "success",
+            data: {
+                signatures: [
+                    { id: 7, full_name: "Thomas Dupont", sender: "test@test.com", is_default: true },
+                ],
+                default_signature_id: 7,
+            },
+        });
+        // draft creation
+        fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
+
+        await client.createDraft("a@test.com", "Subject", "Body");
+
+        const calls = fetchMock.calls();
+        assert.strictEqual(
+            calls[1].url,
+            "https://api.infomaniak.com/1/mail_hostings/123/mailboxes/test/signatures",
+        );
+        const draftBody = JSON.parse(calls[2].options.body);
+        assert.strictEqual(draftBody.from.name, "Thomas Dupont");
+        assert.strictEqual(draftBody.from.email, "test@test.com");
+        assert.strictEqual(draftBody.identity_id, "7");
+    });
+
+    it("createDraft sends from an alias when from_email matches an alias identity", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [{
+                uuid: "mb-uuid",
+                email: "test@test.com",
+                mailbox: "test",
+                hosting_id: 123,
+                aliases: ["alias@test.com"],
+            }],
+        });
+        await client.init();
+
+        fetchMock.enqueue({
+            result: "success",
+            data: {
+                signatures: [
+                    { id: 7, full_name: "Thomas Dupont", sender: "test@test.com", is_default: true },
+                    { id: 12, full_name: "Alias Name", sender: "alias@test.com", is_default: false },
+                ],
+                default_signature_id: 7,
+            },
+        });
+        fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
+
+        await client.createDraft(
+            "a@test.com",
+            "Subject",
+            "Body",
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            "Alias@Test.com",
+        );
+
+        const calls = fetchMock.calls();
+        const draftBody = JSON.parse(calls[2].options.body);
+        assert.strictEqual(draftBody.from.email, "alias@test.com");
+        assert.strictEqual(draftBody.from.name, "Alias Name");
+        assert.strictEqual(draftBody.identity_id, "12");
+        assert.strictEqual(draftBody.reply_to.email, "alias@test.com");
+    });
+
+    it("createDraft rejects from_email outside mailbox addresses and aliases", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [{
+                uuid: "mb-uuid",
+                email: "test@test.com",
+                mailbox: "test",
+                hosting_id: 123,
+                aliases: ["alias@test.com"],
+            }],
+        });
+        await client.init();
+
+        await assert.rejects(
+            client.createDraft(
+                "a@test.com",
+                "Subject",
+                "Body",
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                "intruder@evil.com",
+            ),
+            /not allowed/,
+        );
+
+        const calls = fetchMock.calls();
+        assert.ok(!calls.some((c) => c.url.includes("/draft")), "should not create any draft");
+    });
+
+    it("createDraft matches from_name to a sending identity", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [{ uuid: "mb-uuid", email: "test@test.com", mailbox: "test", hosting_id: 123 }],
+        });
+        await client.init();
+
+        // identities lookup
+        fetchMock.enqueue({
+            result: "success",
+            data: {
+                signatures: [
+                    { id: 7, full_name: "Thomas Dupont", sender: "test@test.com", is_default: true },
+                ],
+                default_signature_id: 7,
+            },
+        });
+        fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
+
+        const draft = await client.createDraft(
+            "a@test.com",
+            "Subject",
+            "Body",
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            "Thomas Dupont",
+        );
+
+        const calls = fetchMock.calls();
+        assert.strictEqual(calls.length, 3);
+        const draftBody = JSON.parse(calls[2].options.body);
+        assert.strictEqual(draftBody.from.name, "Thomas Dupont");
+        assert.strictEqual(draftBody.from.email, "test@test.com");
+        assert.strictEqual(draftBody.identity_id, "7");
+        assert.strictEqual(draft.warnings, undefined);
+    });
+
+    it("createDraft prefers the identity with a non-empty display name", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [{ uuid: "mb-uuid", email: "test@test.com", mailbox: "test", hosting_id: 123 }],
+        });
+        await client.init();
+
+        // the default signature has an empty display name: it would produce an anonymous From
+        fetchMock.enqueue({
+            result: "success",
+            data: {
+                signatures: [
+                    { id: 7, full_name: "", sender: "test@test.com", is_default: true },
+                    { id: 8, full_name: "Thomas Dupont", sender: "test@test.com", is_default: false },
+                ],
+                default_signature_id: 7,
+            },
+        });
+        fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
+
+        const draft = await client.createDraft("a@test.com", "Subject", "Body");
+
+        const calls = fetchMock.calls();
+        const draftBody = JSON.parse(calls[2].options.body);
+        assert.strictEqual(draftBody.identity_id, "8");
+        assert.strictEqual(draft.resolved_from.name, "Thomas Dupont");
+    });
+
+    it("createDraft warns when from_name matches no identity", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [{ uuid: "mb-uuid", email: "test@test.com", mailbox: "test", hosting_id: 123 }],
+        });
+        await client.init();
+
+        fetchMock.enqueue({
+            result: "success",
+            data: {
+                signatures: [
+                    { id: 7, full_name: "Thomas Dupont", sender: "test@test.com", is_default: true },
+                ],
+                default_signature_id: 7,
+            },
+        });
+        fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
+
+        const draft = await client.createDraft(
+            "a@test.com",
+            "Subject",
+            "Body",
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            "Zorglub Test",
+        );
+
+        const calls = fetchMock.calls();
+        const draftBody = JSON.parse(calls[2].options.body);
+        // effective display name comes from the fallback identity
+        assert.strictEqual(draftBody.identity_id, "7");
+        assert.strictEqual(draft.resolved_from.name, "Thomas Dupont");
+        assert.strictEqual(draft.warnings.length, 1);
+        assert.match(draft.warnings[0], /No identity named/);
+    });
+
+    it("createDraft warns when the requested alias has no sending identity", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [{
+                uuid: "mb-uuid",
+                email: "test@test.com",
+                mailbox: "test",
+                hosting_id: 123,
+                aliases: ["alias@test.com"],
+            }],
+        });
+        await client.init();
+
+        // only the main address has an identity
+        fetchMock.enqueue({
+            result: "success",
+            data: {
+                signatures: [
+                    { id: 7, full_name: "Thomas Dupont", sender: "test@test.com", is_default: true },
+                ],
+                default_signature_id: 7,
+            },
+        });
+        fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
+
+        const draft = await client.createDraft(
+            "a@test.com",
+            "Subject",
+            "Body",
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            "alias@test.com",
+        );
+
+        const calls = fetchMock.calls();
+        const draftBody = JSON.parse(calls[2].options.body);
+        assert.strictEqual(draftBody.from.email, "alias@test.com");
+        assert.strictEqual(draftBody.identity_id, null);
+        assert.strictEqual(draft.warnings.length, 1);
+        assert.match(draft.warnings[0], /No sending identity exists/);
+    });
+
+    it("createDraft falls back to local part when identity lookup fails", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [{ uuid: "mb-uuid", email: "test@test.com", mailbox: "test", hosting_id: 123 }],
+        });
+        await client.init();
+
+        // no identities response enqueued: the lookup fails and must be tolerated
+        fetchMock.enqueue(new Response("{}", { status: 403 }));
+        fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
+
+        await client.createDraft("a@test.com", "Subject", "Body");
+
+        const calls = fetchMock.calls();
+        const draftBody = JSON.parse(calls[2].options.body);
+        assert.strictEqual(draftBody.from.name, "test");
+        assert.strictEqual(draftBody.from.email, "test@test.com");
+        assert.strictEqual(draftBody.identity_id, null);
+    });
+
+    it("sendEmail forwards from_email and from_name", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [{
+                uuid: "mb-uuid",
+                email: "test@test.com",
+                mailbox: "test",
+                hosting_id: 123,
+                aliases: ["alias@test.com"],
+            }],
+        });
+        await client.init();
+
+        fetchMock.enqueue({
+            result: "success",
+            data: {
+                signatures: [
+                    { id: 12, full_name: "Alias Name", sender: "alias@test.com", is_default: false },
+                ],
+                default_signature_id: 12,
+            },
+        });
+        fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
+        fetchMock.enqueue({ result: "success", data: { etop: "2024-01-01T00:00:00+00:00" } });
+
+        await client.sendEmail(
+            "to@test.com",
+            "Subject",
+            "Body",
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            "alias@test.com",
+        );
+
+        const calls = fetchMock.calls();
+        const draftBody = JSON.parse(calls[2].options.body);
+        assert.strictEqual(draftBody.from.email, "alias@test.com");
+        assert.strictEqual(draftBody.from.name, "Alias Name");
     });
 
     it("uploadAttachment sets correct MIME type", async () => {
@@ -788,6 +1152,9 @@ describe("MailClient", () => {
         fetchMock.enqueue({ result: "success", data: [{ uuid: "mb-uuid", email: "test@test.com", mailbox: "test", hosting_id: 123 }] });
         await client.init();
 
+        // identity lookup (fails here, falls back to the mailbox local part)
+        fetchMock.enqueue(new Response("{}", { status: 403 }));
+
         // create draft
         fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
         // send draft
@@ -832,6 +1199,9 @@ describe("MailClient", () => {
             },
         });
 
+        // identity lookup (fails here, falls back to the mailbox local part)
+        fetchMock.enqueue(new Response("{}", { status: 403 }));
+
         // draft creation
         fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
 
@@ -847,12 +1217,12 @@ describe("MailClient", () => {
         );
 
         const calls = fetchMock.calls();
-        // call 0 = init, call 1 = readEmail (source), call 2 = draft POST
+        // call 0 = init, call 1 = readEmail (source), call 2 = identities lookup, call 3 = draft POST
         assert.strictEqual(
             calls[1].url,
             "https://mail.infomaniak.com/api/mail/mb-uuid/folder/fid/message/42?prefered_format=html&with=auto_uncrypt,thread_context",
         );
-        const draftBody = JSON.parse(calls[2].options.body);
+        const draftBody = JSON.parse(calls[3].options.body);
         assert.strictEqual(draftBody.in_reply_to, "<orig-123@example.com>");
         // References should contain parent and source msg_id (dedup)
         assert.strictEqual(draftBody.references, "<parent-1@example.com> <orig-123@example.com>");
@@ -889,6 +1259,9 @@ describe("MailClient", () => {
             },
         });
 
+        // identity lookup (fails here, falls back to the mailbox local part)
+        fetchMock.enqueue(new Response("{}", { status: 403 }));
+
         fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
 
         await client.createDraft(
@@ -903,7 +1276,7 @@ describe("MailClient", () => {
         );
 
         const calls = fetchMock.calls();
-        const draftBody = JSON.parse(calls[2].options.body);
+        const draftBody = JSON.parse(calls[3].options.body);
         assert.strictEqual(draftBody.in_reply_to, "<reply-target@example.com>");
         assert.strictEqual(
             draftBody.references,
@@ -941,6 +1314,9 @@ describe("MailClient", () => {
             },
         });
 
+        // identity lookup (fails here, falls back to the mailbox local part)
+        fetchMock.enqueue(new Response("{}", { status: 403 }));
+
         fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
 
         await client.createDraft(
@@ -955,7 +1331,7 @@ describe("MailClient", () => {
         );
 
         const calls = fetchMock.calls();
-        const draftBody = JSON.parse(calls[2].options.body);
+        const draftBody = JSON.parse(calls[3].options.body);
         assert.strictEqual(draftBody.in_reply_to, "<dup@example.com>");
         assert.strictEqual(
             draftBody.references,
@@ -971,6 +1347,9 @@ describe("MailClient", () => {
             data: [{ uuid: "mb-uuid", email: "test@test.com", mailbox: "test", hosting_id: 123 }],
         });
         await client.init();
+
+        // identity lookup (fails here, falls back to the mailbox local part)
+        fetchMock.enqueue(new Response("{}", { status: 403 }));
 
         // No source read should happen since both explicit headers are provided
         fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
@@ -988,9 +1367,9 @@ describe("MailClient", () => {
         );
 
         const calls = fetchMock.calls();
-        // init + draft POST only; no source read
-        assert.strictEqual(calls.length, 2);
-        const draftBody = JSON.parse(calls[1].options.body);
+        // init + identities lookup + draft POST only; no source read
+        assert.strictEqual(calls.length, 3);
+        const draftBody = JSON.parse(calls[2].options.body);
         assert.strictEqual(draftBody.in_reply_to, "<explicit-in-reply-to@example.com>");
         assert.strictEqual(draftBody.references, "<explicit-ref@example.com>");
         assert.strictEqual(draftBody.in_reply_to_uid, "42@fid");
@@ -1024,6 +1403,9 @@ describe("MailClient", () => {
             },
         });
 
+        // identity lookup (fails here, falls back to the mailbox local part)
+        fetchMock.enqueue(new Response("{}", { status: 403 }));
+
         fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
 
         await client.createDraft(
@@ -1038,7 +1420,7 @@ describe("MailClient", () => {
         );
 
         const calls = fetchMock.calls();
-        const draftBody = JSON.parse(calls[2].options.body);
+        const draftBody = JSON.parse(calls[3].options.body);
         // explicit in_reply_to preserved
         assert.strictEqual(draftBody.in_reply_to, "<explicit-in-reply-to@example.com>");
         // references resolved from source
@@ -1121,13 +1503,16 @@ describe("MailClient", () => {
         });
         await client.init();
 
+        // identity lookup (fails here, falls back to the mailbox local part)
+        fetchMock.enqueue(new Response("{}", { status: 403 }));
+
         fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
 
         await client.createDraft("a@test.com", "Subject", "Body");
 
         const calls = fetchMock.calls();
-        // init + draft POST only, no readEmail call
-        assert.strictEqual(calls.length, 2);
+        // init + identities lookup + draft POST only, no readEmail call
+        assert.strictEqual(calls.length, 3);
         assert.ok(!calls.some((c) => c.url.includes("/message/")), "should not read source message");
     });
 
@@ -1136,6 +1521,9 @@ describe("MailClient", () => {
 
         fetchMock.enqueue({ result: "success", data: [{ uuid: "mb-uuid", email: "test@test.com", mailbox: "test", hosting_id: 123 }] });
         await client.init();
+
+        // identity lookup (fails here, falls back to the mailbox local part)
+        fetchMock.enqueue(new Response("{}", { status: 403 }));
 
         // create draft
         fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
@@ -1154,6 +1542,9 @@ describe("MailClient", () => {
 
         fetchMock.enqueue({ result: "success", data: [{ uuid: "mb-uuid", email: "test@test.com", mailbox: "test", hosting_id: 123 }] });
         await client.init();
+
+        // identity lookup (fails here, falls back to the mailbox local part)
+        fetchMock.enqueue(new Response("{}", { status: 403 }));
 
         fetchMock.enqueue({ result: "success", data: { uuid: "draft-uuid", uid: "draft-uid" } });
         const draft = await client.createDraft("a@test.com", "To Delete", "Body");

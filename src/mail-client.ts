@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const API_BASE = "https://mail.infomaniak.com/api";
+const MANAGER_API_V1_BASE = "https://api.infomaniak.com/1";
 const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024;
 
 export class MailClient {
@@ -9,6 +10,7 @@ export class MailClient {
     private mailboxUuid: string | null = null;
     private mailboxes: any[] = [];
     private readonly draftsCache: Map<string, any> = new Map();
+    private readonly identitiesCache: Record<string, any[]> = {};
 
     constructor(token: string) {
         this.headers = {
@@ -48,8 +50,7 @@ export class MailClient {
         return `<html><body><div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 14px;">${escapedBody}</div></body></html>`;
     }
 
-    private async apiRequest(path: string, options: RequestInit = {}): Promise<any> {
-        const url = `${API_BASE}${path}`;
+    private async apiRequestFull(url: string, options: RequestInit = {}): Promise<any> {
         const response = await fetch(url, {
             ...options,
             headers: {
@@ -66,6 +67,10 @@ export class MailClient {
         }
 
         return response.json();
+    }
+
+    private async apiRequest(path: string, options: RequestInit = {}): Promise<any> {
+        return this.apiRequestFull(`${API_BASE}${path}`, options);
     }
 
     async init(): Promise<void> {
@@ -126,6 +131,100 @@ export class MailClient {
             throw new Error(`Mailbox not found: ${mailboxUuid}`);
         }
         return mb;
+    }
+
+    private async getIdentities(mailboxUuid: string, mbInfo: any): Promise<any[]> {
+        if (this.identitiesCache[mailboxUuid]) return this.identitiesCache[mailboxUuid];
+
+        if (!mbInfo.hosting_id || !mbInfo.mailbox) {
+            throw new Error("Mailbox is missing hosting_id or mailbox name; cannot load identities");
+        }
+
+        const response = await this.apiRequestFull(
+            `${MANAGER_API_V1_BASE}/mail_hostings/${mbInfo.hosting_id}/mailboxes/${encodeURIComponent(mbInfo.mailbox)}/signatures`,
+        );
+
+        const signatures = response?.data?.signatures;
+        if (!Array.isArray(signatures)) {
+            throw new Error("Unexpected signatures response");
+        }
+
+        this.identitiesCache[mailboxUuid] = signatures;
+        return signatures;
+    }
+
+    private async resolveFrom(
+        mailboxUuid: string,
+        mbInfo: any,
+        fromEmailParam?: string,
+        fromNameParam?: string,
+    ): Promise<{ email: string; name: string; identityId: string | null; warnings: string[] }> {
+        const warnings: string[] = [];
+
+        const allowedEmails = [
+            mbInfo.email,
+            ...(Array.isArray(mbInfo.aliases) ? mbInfo.aliases : []),
+        ].filter((e: any) => typeof e === "string" && e.trim().length > 0);
+
+        let fromEmail = mbInfo.email;
+        if (fromEmailParam) {
+            const requested = fromEmailParam.trim().toLowerCase();
+            const match = allowedEmails.find((e: string) => e.toLowerCase() === requested);
+            if (!match) {
+                throw new Error(
+                    `from_email "${fromEmailParam}" is not allowed: use the mailbox address or one of its aliases (${allowedEmails.join(", ")})`,
+                );
+            }
+            fromEmail = match;
+        }
+
+        // The API builds the From header from the sending identity (identity_id):
+        // - identity_id set  -> signature sender + signature full_name
+        // - identity_id null -> default identity sender + account profile display name
+        // The from.name payload field is ignored by the API.
+        let identity: any = null;
+        try {
+            const identities = await this.getIdentities(mailboxUuid, mbInfo);
+            const candidates = identities.filter(
+                (s: any) => typeof s?.sender === "string" && s.sender.toLowerCase() === fromEmail.toLowerCase(),
+            );
+
+            if (fromNameParam) {
+                const requested = fromNameParam.trim().toLowerCase();
+                identity =
+                    candidates.find(
+                        (s: any) => typeof s?.full_name === "string" && s.full_name.trim().toLowerCase() === requested,
+                    ) || null;
+                if (!identity) {
+                    warnings.push(
+                        `No identity named "${fromNameParam}" for ${fromEmail}: the display name comes from the matching identity or the account profile, not from from_name`,
+                    );
+                }
+            }
+
+            if (!identity) {
+                // A signature with an empty full_name would produce an anonymous From header
+                const named = candidates.filter(
+                    (s: any) => typeof s?.full_name === "string" && s.full_name.trim().length > 0,
+                );
+                identity = named.find((s: any) => s.is_default) || named[0] || null;
+            }
+
+            if (fromEmailParam && !identity && fromEmail.toLowerCase() !== String(mbInfo.email).toLowerCase()) {
+                warnings.push(
+                    `No sending identity exists for ${fromEmail}: the API will send from the default identity address instead. Create an identity for this alias in kMail to use it`,
+                );
+            }
+        } catch {
+            // Identities are optional: on failure the API falls back to the account profile display name
+        }
+
+        return {
+            email: fromEmail,
+            name: identity?.full_name || fromNameParam || fromEmail.split("@")[0],
+            identityId: identity ? String(identity.id) : null,
+            warnings,
+        };
     }
 
     async uploadAttachment(filePath: string, mailboxUuid?: string): Promise<string> {
@@ -500,8 +599,10 @@ export class MailClient {
         inReplyTo?: string,
         inReplyToUid?: string,
         references?: string,
+        fromEmail?: string,
+        fromName?: string,
     ): Promise<any> {
-        const draftInfo = await this.createDraft(to, subject, body, cc, bcc, mailboxUuid, inReplyTo, inReplyToUid, references);
+        const draftInfo = await this.createDraft(to, subject, body, cc, bcc, mailboxUuid, inReplyTo, inReplyToUid, references, fromEmail, fromName);
 
         if (attachments && attachments.length > 0) {
             await this.updateDraft(draftInfo.uuid, { attachments }, mailboxUuid);
@@ -566,11 +667,11 @@ export class MailClient {
         inReplyTo?: string,
         inReplyToUid?: string,
         references?: string,
+        fromEmail?: string,
+        fromName?: string,
     ): Promise<any> {
         const uuid = mailboxUuid || await this.getMailboxUuid();
         const mbInfo = this.getMailboxInfo(uuid);
-        const fromEmail = mbInfo.email;
-        const fromName = mbInfo.email.split("@")[0];
 
         let resolvedInReplyTo = inReplyTo || null;
         let resolvedReferences = references || "";
@@ -585,6 +686,8 @@ export class MailClient {
             }
         }
 
+        const from = await this.resolveFrom(uuid, mbInfo, fromEmail, fromName);
+
         const toRecipients = this.parseRecipients(to);
         const ccRecipients = this.parseRecipients(cc);
         const bccRecipients = this.parseRecipients(bcc);
@@ -598,12 +701,12 @@ export class MailClient {
             mime_type: "text/html",
             from: {
                 id: null,
-                name: fromName,
-                email: fromEmail,
+                name: from.name,
+                email: from.email,
             },
             reply_to: {
-                name: fromName,
-                email: fromEmail,
+                name: from.name,
+                email: from.email,
             },
             to: toRecipients,
             cc: ccRecipients,
@@ -613,7 +716,7 @@ export class MailClient {
             in_reply_to_uid: inReplyToUid || null,
             forwarded_uid: null,
             attachments: [],
-            identity_id: null,
+            identity_id: from.identityId,
             ack_request: false,
             st_uuid: null,
             uid: null,
@@ -640,7 +743,7 @@ export class MailClient {
         payload.uid = response.data.uid;
         this.draftsCache.set(draftUuid, payload);
 
-        return {
+        const result: any = {
             uuid: draftUuid,
             uid: response.data.uid,
             subject,
@@ -648,7 +751,16 @@ export class MailClient {
             to,
             cc,
             bcc,
+            resolved_from: {
+                email: from.email,
+                name: from.name,
+                identity_id: from.identityId,
+            },
         };
+        if (from.warnings.length > 0) {
+            result.warnings = from.warnings;
+        }
+        return result;
     }
 
     async updateDraft(

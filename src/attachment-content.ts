@@ -1,11 +1,7 @@
 import type {ContentBlock} from "@modelcontextprotocol/sdk/types.js";
+import type {DownloadedAttachment} from "./types.js";
 
-export interface DownloadedAttachment {
-    filename: string;
-    mime_type: string;
-    size: number;
-    content: string; // base64
-}
+export type {DownloadedAttachment};
 
 // Image formats MCP clients and LLM APIs commonly accept as image content.
 // Others (TIFF, HEIC, SVG, BMP...) go out as a resource blob: an image block

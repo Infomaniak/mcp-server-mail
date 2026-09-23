@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type {DownloadedAttachment} from "./attachment-content.js";
+import type {DownloadedAttachment} from "./types.js";
 
 const API_BASE = "https://mail.infomaniak.com/api";
 const MANAGER_API_V1_BASE = "https://api.infomaniak.com/1";

@@ -50,6 +50,11 @@ describe("attachmentToContent", () => {
         );
 
         assert.deepStrictEqual(content[1], { type: "image", data: "/9j/", mimeType: "image/jpeg" });
+        assert.deepStrictEqual(JSON.parse(content[0].text), {
+            filename: "SCAN.JPG",
+            mime_type: "image/jpeg",
+            size: 3,
+        });
     });
 
     it("returns image types clients commonly reject as a resource blob", () => {

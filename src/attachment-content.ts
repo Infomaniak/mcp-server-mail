@@ -22,9 +22,10 @@ const INLINE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "ima
  * The metadata stays in a small `text` block.
  */
 export function attachmentToContent(attachment: DownloadedAttachment, uri: string): ContentBlock[] {
-    const {content, ...metadata} = attachment;
+    const {content, mime_type, ...rest} = attachment;
     // MIME types are case-insensitive (RFC 2045)
-    const mimeType = (attachment.mime_type || "application/octet-stream").toLowerCase();
+    const mimeType = (mime_type || "application/octet-stream").toLowerCase();
+    const metadata = {...rest, mime_type: mimeType};
     const binary: ContentBlock = INLINE_IMAGE_TYPES.has(mimeType)
         ? {type: "image", data: content, mimeType}
         : {type: "resource", resource: {uri, mimeType, blob: content}};

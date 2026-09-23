@@ -4,6 +4,7 @@ import {McpServer} from "@modelcontextprotocol/sdk/server/mcp.js";
 import {z} from "zod";
 import {StdioServerTransport} from "@modelcontextprotocol/sdk/server/stdio.js";
 import {MailClient} from "./mail-client.js";
+import {attachmentToContent} from "./attachment-content.js";
 import {createRequire} from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -278,7 +279,7 @@ server.tool(
 
 server.tool(
     "mail_download_attachment",
-    "Download a specific attachment from an email as base64-encoded content",
+    "Download a specific attachment from an email. Common web image formats (png/jpeg/gif/webp) are returned as image content, everything else as an embedded resource (base64 blob with its MIME type)",
     {
         folder_id: z.string().describe("Folder ID containing the email"),
         message_id: z.string().describe("Message ID or UID"),
@@ -291,13 +292,9 @@ server.tool(
     async ({folder_id, message_id, attachment_id, mailbox_uuid}) => {
         const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
         const attachment = await mailClient.downloadAttachment(uuid, folder_id, message_id, attachment_id);
+        const uri = "infomaniak-mail://" + [uuid, folder_id, message_id, attachment_id].map(encodeURIComponent).join("/");
         return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify(attachment, null, 2),
-                },
-            ],
+            content: attachmentToContent(attachment, uri),
         };
     },
 );

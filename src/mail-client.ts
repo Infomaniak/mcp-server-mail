@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import type {DownloadedAttachment} from "./types.js";
 
 const API_BASE = "https://mail.infomaniak.com/api";
 const MANAGER_API_V1_BASE = "https://api.infomaniak.com/1";
@@ -520,7 +521,7 @@ export class MailClient {
         folderId: string,
         messageId: string,
         attachmentId: string,
-    ): Promise<any> {
+    ): Promise<DownloadedAttachment> {
         const url = `${API_BASE}/mail/${encodeURIComponent(mailboxUuid)}/folder/${encodeURIComponent(folderId)}/message/${encodeURIComponent(messageId)}/attachment/${encodeURIComponent(attachmentId)}`;
 
         const response = await fetch(url, {

@@ -52,6 +52,18 @@ describe("attachmentToContent", () => {
         assert.deepStrictEqual(content[1], { type: "image", data: "/9j/", mimeType: "image/jpeg" });
     });
 
+    it("returns image types clients commonly reject as a resource blob", () => {
+        for (const mime_type of ["image/tiff", "image/heic", "image/svg+xml", "image/bmp"]) {
+            const content = attachmentToContent(
+                { filename: "scan", mime_type, size: 1, content: "AA==" },
+                URI,
+            );
+
+            assert.strictEqual(content[1].type, "resource", mime_type);
+            assert.strictEqual(content[1].resource.mimeType, mime_type);
+        }
+    });
+
     it("falls back to application/octet-stream when the MIME type is missing", () => {
         for (const mime_type of [undefined, ""]) {
             const content = attachmentToContent(

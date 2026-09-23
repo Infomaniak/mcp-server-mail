@@ -279,7 +279,7 @@ server.tool(
 
 server.tool(
     "mail_download_attachment",
-    "Download a specific attachment from an email. Images are returned as image content, other files as an embedded resource (base64 blob with its MIME type)",
+    "Download a specific attachment from an email. Common web image formats (png/jpeg/gif/webp) are returned as image content, everything else as an embedded resource (base64 blob with its MIME type)",
     {
         folder_id: z.string().describe("Folder ID containing the email"),
         message_id: z.string().describe("Message ID or UID"),

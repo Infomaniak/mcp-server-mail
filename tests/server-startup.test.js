@@ -13,9 +13,10 @@ const packageJson = JSON.parse(
 );
 
 // Launches dist/index.js the way `npx` / MCP clients do: through a bin symlink,
-// then drives a minimal MCP `initialize` handshake over stdio and resolves with
-// the first JSON-RPC response (or null on timeout).
-function handshakeViaSymlink(timeoutMs = 8000) {
+// performs the MCP `initialize` handshake over stdio, then — when follow-up
+// requests are given — sends the `initialized` notification plus those requests
+// and resolves with the last JSON-RPC response (or null on timeout).
+function connectViaSymlink(followUpRequests = [], timeoutMs = 8000) {
     return new Promise((resolve) => {
         const linkDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-bin-"));
         const link = path.join(linkDir, "mcp-server-mail");
@@ -27,7 +28,11 @@ function handshakeViaSymlink(timeoutMs = 8000) {
         });
 
         let stdout = "";
+        let initialized = false;
         let settled = false;
+        const lastId = followUpRequests.length
+            ? followUpRequests[followUpRequests.length - 1].id
+            : 1;
         const finish = (value) => {
             if (settled) return;
             settled = true;
@@ -46,7 +51,17 @@ function handshakeViaSymlink(timeoutMs = 8000) {
                 if (!trimmed) continue;
                 try {
                     const msg = JSON.parse(trimmed);
-                    if (msg.id === 1) finish(msg);
+                    if (msg.id === 1 && followUpRequests.length && !initialized) {
+                        initialized = true;
+                        child.stdin.write(JSON.stringify({
+                            jsonrpc: "2.0",
+                            method: "notifications/initialized",
+                        }) + "\n");
+                        for (const request of followUpRequests) {
+                            child.stdin.write(JSON.stringify(request) + "\n");
+                        }
+                    }
+                    if (msg.id === lastId) finish(msg);
                 } catch {}
             }
         });
@@ -70,7 +85,7 @@ function handshakeViaSymlink(timeoutMs = 8000) {
 
 describe("server startup", () => {
     it("responds to an MCP initialize handshake when launched via bin symlink", async () => {
-        const response = await handshakeViaSymlink();
+        const response = await connectViaSymlink();
         assert.ok(
             response,
             "server exited without answering initialize — main() did not connect the transport (bin-symlink entry-point bug)",
@@ -82,5 +97,19 @@ describe("server startup", () => {
             "initialize result should include serverInfo",
         );
         assert.strictEqual(response.result.serverInfo.version, packageJson.version);
+    });
+
+    it("describes the inline image allowlist for mail_download_attachment", async () => {
+        const response = await connectViaSymlink([
+            { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} },
+        ]);
+        assert.ok(response?.result?.tools, "tools/list should return tools");
+        const tool = response.result.tools.find((t) => t.name === "mail_download_attachment");
+        assert.ok(tool, "mail_download_attachment should be listed");
+        assert.match(
+            tool.description,
+            /png\/jpeg\/gif\/webp/,
+            "description should name the image formats inlined as image content",
+        );
     });
 });

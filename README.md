@@ -59,22 +59,27 @@ MCP Server for the Infomaniak Mail API.
    - Returns: Full email with uid, msg_id, subject, from, to, cc, bcc, date, body, html, preview, seen status, flagged status, folder, folder_id, headers, and attachment metadata
 
 8. `mail_download_attachment`
-   - Download an email attachment as base64-encoded content
+   - Download an email attachment. Common web image formats (png/jpeg/gif/webp) are returned as image content, everything else as an embedded resource
    - Required inputs:
      - `folder_id` (string): Folder ID containing the email
      - `message_id` (string): Message ID or UID
      - `attachment_id` (string): Attachment ID from `mail_read_email` response
    - Optional inputs:
      - `mailbox_uuid` (string): Mailbox UUID (uses primary if omitted)
-   - Returns: Attachment metadata with base64 content
-     ```json
-     {
-       "filename": "report.pdf",
-       "mime_type": "application/pdf",
-       "size": 124500,
-       "content": "JVBERi0xLjQKJdPr6eEKMSAwIG9iago8PAovVHlw..."
-     }
-     ```
+   - Returns: a small metadata text block plus the binary as a typed content block
+     - png/jpeg/gif/webp → an `image` block (`data` base64 + `mimeType`)
+     - other files → an embedded `resource` block (`uri`, `mimeType`, base64 `blob`), e.g. for a PDF:
+      ```json
+      {
+        "type": "resource",
+        "resource": {
+          "uri": "infomaniak-mail://<mailbox-uuid>/<folder-id>/<message-id>/<attachment-id>",
+          "mimeType": "application/pdf",
+          "blob": "JVBERi0xLjQKJdPr6eEKMSAwIG9iago8PAovVHlw..."
+        }
+      }
+      ```
+      metadata text block: `{"filename": "report.pdf", "mime_type": "application/pdf", "size": 124500}`
 
 9. `mail_send_email`
    - Send an email

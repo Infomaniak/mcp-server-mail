@@ -593,6 +593,212 @@ describe("MailClient", () => {
         );
     });
 
+    it("createDraft keeps HTML body as-is when body_format is html", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [
+                {
+                    uuid: "mb-uuid",
+                    hosting_id: 123,
+                    mailbox: "test",
+                    email: "test@test.com",
+                },
+            ],
+        });
+        await client.init();
+
+        fetchMock.enqueue(new Response("{}", { status: 403 }));
+
+        fetchMock.enqueue({
+            result: "success",
+            data: { uuid: "draft-uuid", uid: "draft-uid" },
+        });
+
+        await client.createDraft(
+            "to@test.com",
+            "HTML body",
+            "<p>Hello <strong>world</strong></p>",
+            undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+            "html",
+        );
+
+        const calls = fetchMock.calls();
+        const draftBody = JSON.parse(calls[2].options.body);
+        assert.ok(draftBody.body.includes("<p>Hello <strong>world</strong></p>"));
+        assert.strictEqual(draftBody.mime_type, "text/html");
+    });
+
+    it("createDraft sanitizes a full HTML document with body_format html", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [
+                {
+                    uuid: "mb-uuid",
+                    hosting_id: 123,
+                    mailbox: "test",
+                    email: "test@test.com",
+                },
+            ],
+        });
+        await client.init();
+
+        fetchMock.enqueue(new Response("{}", { status: 403 }));
+
+        fetchMock.enqueue({
+            result: "success",
+            data: { uuid: "draft-uuid", uid: "draft-uid" },
+        });
+
+        const html = "<!DOCTYPE html>\n<html><head><title>x</title></head><body style=\"background:#f5f5f5\"><h1>Title</h1></body></html>";
+        await client.createDraft(
+            "to@test.com", "Full document", html,
+            undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+            "html",
+        );
+
+        const calls = fetchMock.calls();
+        const draftBody = JSON.parse(calls[2].options.body);
+        assert.ok(draftBody.body.includes("<h1>Title</h1>"));
+        assert.ok(!draftBody.body.includes("<!DOCTYPE"), "document wrapper is rebuilt, not copied");
+        assert.ok(draftBody.body.includes('<div style="background:#f5f5f5">'), "body styling is kept");
+        assert.ok(!draftBody.body.includes("<title>"), "head content is dropped");
+    });
+
+    it("createDraft sanitizes HTML bodies", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [
+                {
+                    uuid: "mb-uuid",
+                    hosting_id: 123,
+                    mailbox: "test",
+                    email: "test@test.com",
+                },
+            ],
+        });
+        await client.init();
+
+        fetchMock.enqueue(new Response("{}", { status: 403 }));
+
+        fetchMock.enqueue({
+            result: "success",
+            data: { uuid: "draft-uuid", uid: "draft-uid" },
+        });
+
+        const html = [
+            "<table width=\"600\" style=\"background:#fff\"><tr><td style=\"padding:20px\">",
+            "<a href=\"https://example.com\">ok</a>",
+            "<a href=\"javascript:alert(1)\">bad link</a>",
+            "<img src=\"https://example.com/a.png\" onerror=\"alert(1)\">",
+            "<script>alert(1)</script>",
+            "<iframe src=\"https://evil.example\"></iframe>",
+            "<form action=\"https://evil.example\"><input name=\"password\"></form>",
+            "</td></tr></table>",
+        ].join("");
+        await client.createDraft(
+            "to@test.com", "Sanitized", html,
+            undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+            "html",
+        );
+
+        const calls = fetchMock.calls();
+        const sent = JSON.parse(calls[2].options.body).body;
+        assert.ok(sent.includes('<table width="600" style="background:#fff">'));
+        assert.ok(sent.includes('<td style="padding:20px">'));
+        assert.ok(sent.includes('<a href="https://example.com">ok</a>'));
+        assert.ok(sent.includes('<img src="https://example.com/a.png" />'));
+        for (const forbidden of ["javascript:", "onerror", "<script", "alert(1)", "<iframe", "<form", "<input"]) {
+            assert.ok(!sent.includes(forbidden), `${forbidden} should be removed`);
+        }
+    });
+
+    it("createDraft auto-detects a full HTML document without body_format", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [
+                {
+                    uuid: "mb-uuid",
+                    hosting_id: 123,
+                    mailbox: "test",
+                    email: "test@test.com",
+                },
+            ],
+        });
+        await client.init();
+
+        fetchMock.enqueue(new Response("{}", { status: 403 }));
+
+        fetchMock.enqueue({
+            result: "success",
+            data: { uuid: "draft-uuid", uid: "draft-uid" },
+        });
+
+        await client.createDraft("to@test.com", "No format", "<!DOCTYPE html><html><body><p>Hi</p></body></html>");
+
+        const calls = fetchMock.calls();
+        const sent = JSON.parse(calls[2].options.body).body;
+        assert.ok(sent.includes("<p>Hi</p>"));
+        assert.ok(!sent.includes("&lt;"));
+    });
+
+    it("createDraft strips remote CSS resources, positioning, classes and unsafe data images", async () => {
+        const client = new MailClient("mock-token");
+
+        fetchMock.enqueue({
+            result: "success",
+            data: [
+                {
+                    uuid: "mb-uuid",
+                    hosting_id: 123,
+                    mailbox: "test",
+                    email: "test@test.com",
+                },
+            ],
+        });
+        await client.init();
+
+        fetchMock.enqueue(new Response("{}", { status: 403 }));
+
+        fetchMock.enqueue({
+            result: "success",
+            data: { uuid: "draft-uuid", uid: "draft-uid" },
+        });
+
+        const html = [
+            "<div class=\"ik-verified\" style=\"color:#333;background:url(https://tracker.example/p.gif);padding:10px\">a</div>",
+            "<div style=\"background-image:u\\72l(https://tracker.example/x)\">b</div>",
+            "<div style=\"position:fixed;top:0;font-size:14px\">c</div>",
+            "<img src=\"data:image/png;base64,iVBORw0KGgo=\" alt=\"ok\">",
+            "<img src=\"data:image/svg+xml;base64,PHN2Zz4=\" alt=\"svg\">",
+            "<a href=\"https://example.com\" target=\"_blank\">link</a>",
+        ].join("");
+        await client.createDraft(
+            "to@test.com", "Hardened", html,
+            undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+            "html",
+        );
+
+        const calls = fetchMock.calls();
+        const sent = JSON.parse(calls[2].options.body).body;
+        assert.ok(sent.includes('<div style="color:#333;padding:10px">a</div>'));
+        assert.ok(sent.includes("<div>b</div>"));
+        assert.ok(sent.includes('<div style="top:0;font-size:14px">c</div>'));
+        assert.ok(sent.includes('<img src="data:image/png;base64,iVBORw0KGgo=" alt="ok" />'));
+        assert.ok(sent.includes('<img alt="svg" />'));
+        assert.ok(sent.includes('<a href="https://example.com" target="_blank" rel="noopener noreferrer">link</a>'));
+        for (const forbidden of ["tracker.example", "position", "class=", "svg+xml"]) {
+            assert.ok(!sent.includes(forbidden), `${forbidden} should be removed`);
+        }
+    });
+
     it("createDraft resolves default display name from the mailbox identity", async () => {
         const client = new MailClient("mock-token");
 

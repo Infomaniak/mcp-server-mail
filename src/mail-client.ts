@@ -1,10 +1,88 @@
 import fs from "node:fs";
 import path from "node:path";
+import sanitizeHtml from "sanitize-html";
 import type {DownloadedAttachment} from "./types.js";
 
 const API_BASE = "https://mail.infomaniak.com/api";
 const MANAGER_API_V1_BASE = "https://api.infomaniak.com/1";
 const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024;
+
+export type BodyFormat = "text" | "html";
+
+// Allowlist for HTML email bodies: layout, text formatting, tables, images and
+// links are kept; scripts, forms, embeds, event handlers and non-web URL
+// schemes are dropped.
+const EMAIL_HTML_OPTIONS: sanitizeHtml.IOptions = {
+    allowedTags: [
+        "a", "abbr", "b", "blockquote", "br", "caption", "center", "code", "col", "colgroup",
+        "dd", "del", "div", "dl", "dt", "em", "font", "h1", "h2", "h3", "h4", "h5", "h6",
+        "hr", "i", "img", "ins", "li", "mark", "ol", "p", "pre", "q", "s", "small", "span",
+        "strike", "strong", "sub", "sup", "table", "tbody", "td", "tfoot", "th", "thead",
+        "tr", "u", "ul",
+    ],
+    allowedAttributes: {
+        "*": ["style", "align", "valign", "width", "height", "dir", "lang", "title"],
+        a: ["href", "name", "target", "rel"],
+        img: ["src", "alt", "border"],
+        table: ["border", "cellpadding", "cellspacing", "bgcolor"],
+        td: ["colspan", "rowspan", "bgcolor", "nowrap"],
+        th: ["colspan", "rowspan", "bgcolor", "nowrap", "scope"],
+        tr: ["bgcolor"],
+        col: ["span"],
+        colgroup: ["span"],
+        font: ["color", "face", "size"],
+        ol: ["start", "type"],
+    },
+    allowedSchemes: ["http", "https", "mailto", "tel"],
+    allowedSchemesByTag: { img: ["http", "https", "cid", "data"] },
+    allowProtocolRelative: false,
+    nonTextTags: ["script", "style", "textarea", "option", "noscript", "title", "head"],
+    transformTags: {
+        // Keep the document-level styling (background, padding) of full HTML documents.
+        body: "div",
+        a: (tagName, attribs) => ({
+            tagName,
+            attribs: attribs.target ? { ...attribs, rel: "noopener noreferrer" } : attribs,
+        }),
+        img: (tagName, attribs) => {
+            const src = attribs.src ?? "";
+            if (/^data:/i.test(src) && !SAFE_DATA_IMAGE.test(src)) {
+                const { src: _dropped, ...rest } = attribs;
+                return { tagName, attribs: rest };
+            }
+            return { tagName, attribs };
+        },
+        "*": (tagName, attribs) => {
+            if (attribs.style === undefined) {
+                return { tagName, attribs };
+            }
+            const style = sanitizeInlineStyle(attribs.style);
+            const { style: _dropped, ...rest } = attribs;
+            return { tagName, attribs: style ? { ...rest, style } : rest };
+        },
+    },
+};
+
+const SAFE_DATA_IMAGE = /^data:image\/(png|jpe?g|gif|webp);base64,[a-z0-9+/=\s]+$/i;
+
+// Inline CSS cannot run scripts in mail clients, but url() loads remote content
+// (tracking, spoofed images) and position lets a message overlay the client UI.
+// Escapes and comments are dropped too, as they can hide those keywords.
+const UNSAFE_CSS = /url\s*\(|image-set\s*\(|expression\s*\(|javascript:|behavior\s*:|-moz-binding|@import|\\|\/\*/i;
+const UNSAFE_CSS_PROPERTIES = new Set(["position", "behavior", "-moz-binding"]);
+
+function sanitizeInlineStyle(style: string): string {
+    return style
+        .split(";")
+        .map((declaration) => declaration.trim())
+        .filter((declaration) => {
+            const property = declaration.split(":", 1)[0].trim().toLowerCase();
+            return declaration.includes(":")
+                && !UNSAFE_CSS.test(declaration)
+                && !UNSAFE_CSS_PROPERTIES.has(property);
+        })
+        .join(";");
+}
 
 export class MailClient {
     private readonly headers: { Authorization: string; "Content-Type": string };
@@ -46,9 +124,14 @@ export class MailClient {
         return text.replace(/[&<>"']/g, (char) => replacements[char]);
     }
 
-    private createHtmlBody(body: string): string {
-        const escapedBody = this.escapeHtml(body).replace(/\n/g, "<br>");
-        return `<html><body><div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 14px;">${escapedBody}</div></body></html>`;
+    private createHtmlBody(body: string, bodyFormat?: BodyFormat): string {
+        // Agents often send a full HTML document without knowing about body_format,
+        // so a body that starts like one is treated (and sanitized) as HTML.
+        const format = bodyFormat ?? (/^\s*(<!doctype html|<html[\s>])/i.test(body) ? "html" : "text");
+        const content = format === "html"
+            ? sanitizeHtml(body, EMAIL_HTML_OPTIONS)
+            : this.escapeHtml(body).replace(/\n/g, "<br>");
+        return `<html><body><div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 14px;">${content}</div></body></html>`;
     }
 
     private async apiRequestFull(url: string, options: RequestInit = {}): Promise<any> {
@@ -602,8 +685,9 @@ export class MailClient {
         references?: string,
         fromEmail?: string,
         fromName?: string,
+        bodyFormat?: BodyFormat,
     ): Promise<any> {
-        const draftInfo = await this.createDraft(to, subject, body, cc, bcc, mailboxUuid, inReplyTo, inReplyToUid, references, fromEmail, fromName);
+        const draftInfo = await this.createDraft(to, subject, body, cc, bcc, mailboxUuid, inReplyTo, inReplyToUid, references, fromEmail, fromName, bodyFormat);
 
         if (attachments && attachments.length > 0) {
             await this.updateDraft(draftInfo.uuid, { attachments }, mailboxUuid);
@@ -670,6 +754,7 @@ export class MailClient {
         references?: string,
         fromEmail?: string,
         fromName?: string,
+        bodyFormat?: BodyFormat,
     ): Promise<any> {
         const uuid = mailboxUuid || await this.getMailboxUuid();
         const mbInfo = this.getMailboxInfo(uuid);
@@ -692,7 +777,7 @@ export class MailClient {
         const toRecipients = this.parseRecipients(to);
         const ccRecipients = this.parseRecipients(cc);
         const bccRecipients = this.parseRecipients(bcc);
-        const htmlBody = this.createHtmlBody(body);
+        const htmlBody = this.createHtmlBody(body, bodyFormat);
 
         const payload: any = {
             uuid: null,
@@ -770,6 +855,7 @@ export class MailClient {
             to?: string;
             subject?: string;
             body?: string;
+            bodyFormat?: BodyFormat;
             cc?: string;
             bcc?: string;
             attachments?: string[];
@@ -795,7 +881,7 @@ export class MailClient {
             payload.subject = options.subject;
         }
         if (options.body !== undefined) {
-            payload.body = this.createHtmlBody(options.body);
+            payload.body = this.createHtmlBody(options.body, options.bodyFormat);
         }
         if (options.cc !== undefined) {
             payload.cc = this.parseRecipients(options.cc);

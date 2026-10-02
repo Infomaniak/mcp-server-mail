@@ -307,7 +307,11 @@ server.tool(
             .string()
             .describe("Recipient email address(es), comma-separated"),
         subject: z.string().describe("Email subject"),
-        body: z.string().describe("Email body (plain text)"),
+        body: z.string().describe("Email body (plain text, or HTML when body_format is 'html')"),
+        body_format: z
+            .enum(["text", "html"])
+            .describe("Format of body: 'text' (HTML-escaped, line breaks kept) or 'html' (sanitized: tables, inline styles, images and links are kept; scripts, forms, embeds, event handlers, remote CSS resources and unsafe URLs are removed. Use inline CSS only). When omitted, a body starting with <!DOCTYPE html> or <html> is treated as HTML, anything else as text")
+            .optional(),
         cc: z
             .string()
             .describe("CC recipient(s), comma-separated")
@@ -345,8 +349,8 @@ server.tool(
             .describe("Sender display name (optional; defaults to the identity or profile name)")
             .optional(),
     },
-    async ({to, subject, body, cc, bcc, attachments, mailbox_uuid, in_reply_to, in_reply_to_uid, references, from_email, from_name}) => {
-        const result = await mailClient.sendEmail(to, subject, body, cc, bcc, attachments, mailbox_uuid, in_reply_to, in_reply_to_uid, references, from_email, from_name);
+    async ({to, subject, body, cc, bcc, attachments, mailbox_uuid, in_reply_to, in_reply_to_uid, references, from_email, from_name, body_format}) => {
+        const result = await mailClient.sendEmail(to, subject, body, cc, bcc, attachments, mailbox_uuid, in_reply_to, in_reply_to_uid, references, from_email, from_name, body_format);
         return {
             content: [
                 {
@@ -366,7 +370,11 @@ server.tool(
             .string()
             .describe("Recipient email address(es), comma-separated"),
         subject: z.string().describe("Draft subject"),
-        body: z.string().describe("Draft body (plain text)"),
+        body: z.string().describe("Draft body (plain text, or HTML when body_format is 'html')"),
+        body_format: z
+            .enum(["text", "html"])
+            .describe("Format of body: 'text' (HTML-escaped, line breaks kept) or 'html' (sanitized: tables, inline styles, images and links are kept; scripts, forms, embeds, event handlers, remote CSS resources and unsafe URLs are removed. Use inline CSS only). When omitted, a body starting with <!DOCTYPE html> or <html> is treated as HTML, anything else as text")
+            .optional(),
         cc: z
             .string()
             .describe("CC recipient(s), comma-separated")
@@ -400,8 +408,8 @@ server.tool(
             .describe("Sender display name (optional; defaults to the identity or profile name)")
             .optional(),
     },
-    async ({to, subject, body, cc, bcc, mailbox_uuid, in_reply_to, in_reply_to_uid, references, from_email, from_name}) => {
-        const result = await mailClient.createDraft(to, subject, body, cc, bcc, mailbox_uuid, in_reply_to, in_reply_to_uid, references, from_email, from_name);
+    async ({to, subject, body, cc, bcc, mailbox_uuid, in_reply_to, in_reply_to_uid, references, from_email, from_name, body_format}) => {
+        const result = await mailClient.createDraft(to, subject, body, cc, bcc, mailbox_uuid, in_reply_to, in_reply_to_uid, references, from_email, from_name, body_format);
         return {
             content: [
                 {
@@ -419,7 +427,11 @@ server.tool(
     {
         draft_uuid: z.string().describe("Draft UUID to update"),
         subject: z.string().describe("New draft subject").optional(),
-        body: z.string().describe("New draft body (plain text)").optional(),
+        body: z.string().describe("New draft body (plain text, or HTML when body_format is 'html')").optional(),
+        body_format: z
+            .enum(["text", "html"])
+            .describe("Format of body: 'text' (HTML-escaped, line breaks kept) or 'html' (sanitized: tables, inline styles, images and links are kept; scripts, forms, embeds, event handlers, remote CSS resources and unsafe URLs are removed. Use inline CSS only). When omitted, a body starting with <!DOCTYPE html> or <html> is treated as HTML, anything else as text")
+            .optional(),
         to: z.string().describe("New recipient(s), comma-separated").optional(),
         cc: z.string().describe("New CC recipient(s), comma-separated").optional(),
         bcc: z.string().describe("New BCC recipient(s), comma-separated").optional(),
@@ -432,10 +444,11 @@ server.tool(
             .describe("Mailbox UUID (optional)")
             .optional(),
     },
-    async ({draft_uuid, subject, body, to, cc, bcc, attachments, mailbox_uuid}) => {
+    async ({draft_uuid, subject, body, to, cc, bcc, attachments, mailbox_uuid, body_format}) => {
         const options: any = {};
         if (subject !== undefined) options.subject = subject;
         if (body !== undefined) options.body = body;
+        if (body_format !== undefined) options.bodyFormat = body_format;
         if (to !== undefined) options.to = to;
         if (cc !== undefined) options.cc = cc;
         if (bcc !== undefined) options.bcc = bcc;

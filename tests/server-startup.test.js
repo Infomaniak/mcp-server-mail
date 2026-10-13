@@ -112,4 +112,20 @@ describe("server startup", () => {
             "description should name the image formats inlined as image content",
         );
     });
+
+    it("exposes optional unseen and flagged booleans on mail_list_emails", async () => {
+        const response = await connectViaSymlink([
+            { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} },
+        ]);
+        const tool = response?.result?.tools?.find((t) => t.name === "mail_list_emails");
+        assert.ok(tool, "mail_list_emails should be listed");
+        const unseen = tool.inputSchema.properties.unseen;
+        const flagged = tool.inputSchema.properties.flagged;
+        assert.ok(unseen, "inputSchema should declare unseen");
+        assert.strictEqual(unseen.type, "boolean", "unseen should be a boolean");
+        assert.ok(unseen.default !== true, "unseen should default to false/undefined");
+        assert.ok(flagged, "inputSchema should declare flagged");
+        assert.strictEqual(flagged.type, "boolean", "flagged should be a boolean");
+        assert.ok(flagged.default !== true, "flagged should default to false/undefined");
+    });
 });

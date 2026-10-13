@@ -168,10 +168,18 @@ server.tool(
             .number()
             .describe("Offset for pagination")
             .default(0),
+        unseen: z
+            .boolean()
+            .describe("Only return unread emails in this folder (cannot be combined with flagged)")
+            .optional(),
+        flagged: z
+            .boolean()
+            .describe("Only return starred/flagged emails in this folder (cannot be combined with unseen)")
+            .optional(),
     },
-    async ({folder_id, mailbox_uuid, limit, offset}) => {
+    async ({folder_id, mailbox_uuid, limit, offset, unseen, flagged}) => {
         const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
-        const emails = await mailClient.listEmails(uuid, folder_id, limit, offset);
+        const emails = await mailClient.listEmails(uuid, folder_id, limit, offset, {unseen, flagged});
         return {
             content: [
                 {

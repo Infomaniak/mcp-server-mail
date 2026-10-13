@@ -48,6 +48,8 @@ MCP Server for the Infomaniak Mail API.
      - `mailbox_uuid` (string): Mailbox UUID
      - `limit` (number): Maximum emails to return (default: 50)
      - `offset` (number): Pagination offset (default: 0)
+     - `unseen` (boolean): Only return unread emails in this folder (cannot be combined with `flagged`)
+     - `flagged` (boolean): Only return starred/flagged emails in this folder (cannot be combined with `unseen`)
    - Returns: List of email threads with subject, from, date, seen status, flagged status, preview
 
 7. `mail_read_email`

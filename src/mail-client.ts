@@ -375,9 +375,19 @@ export class MailClient {
         folderId: string,
         limit: number = 50,
         offset: number = 0,
+        options: { unseen?: boolean; flagged?: boolean } = {},
     ): Promise<any[]> {
+        if (options.unseen && options.flagged) {
+            throw new Error(
+                "The mail API supports only one filter at a time; request unseen or flagged, not both.",
+            );
+        }
+
+        const filter = options.unseen ? "unseen" : options.flagged ? "starred" : null;
+        const filterParam = filter ? `&filters=${filter}` : "";
+
         const response = await this.apiRequest(
-            `/mail/${mailboxUuid}/folder/${folderId}/message?offset=${offset}&thread=on&severywhere=0&limit=${limit}`,
+            `/mail/${mailboxUuid}/folder/${folderId}/message?offset=${offset}&thread=on&severywhere=0&limit=${limit}${filterParam}`,
         );
 
         return (response.data?.threads || []).map((thread: any) => ({

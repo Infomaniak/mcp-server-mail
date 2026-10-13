@@ -1094,6 +1094,52 @@ describe("MailClient", () => {
         assert.strictEqual(result[0].folder, "Sent");
     });
 
+    it("listEmails keeps default request unchanged when no filter option is given", async () => {
+        const client = new MailClient("mock-token");
+        fetchMock.enqueue({ result: "success", data: { threads: [] } });
+
+        await client.listEmails("mb", "fid");
+
+        const url = fetchMock.calls()[0].url;
+        assert.ok(
+            url.includes("offset=0&thread=on&severywhere=0&limit=50"),
+            `default query string should be untouched, got: ${url}`,
+        );
+        assert.ok(!url.includes("filters="), `no filters param expected, got: ${url}`);
+    });
+
+    it("listEmails appends filters=unseen when only unseen is requested", async () => {
+        const client = new MailClient("mock-token");
+        fetchMock.enqueue({ result: "success", data: { threads: [] } });
+
+        await client.listEmails("mb", "fid", 50, 0, { unseen: true });
+
+        const url = fetchMock.calls()[0].url;
+        assert.ok(url.includes("filters=unseen"), `filters=unseen expected, got: ${url}`);
+        assert.ok(!url.includes("filters=starred"), `no starred filter expected, got: ${url}`);
+    });
+
+    it("listEmails appends filters=starred when only flagged is requested", async () => {
+        const client = new MailClient("mock-token");
+        fetchMock.enqueue({ result: "success", data: { threads: [] } });
+
+        await client.listEmails("mb", "fid", 50, 0, { flagged: true });
+
+        const url = fetchMock.calls()[0].url;
+        assert.ok(url.includes("filters=starred"), `filters=starred expected, got: ${url}`);
+        assert.ok(!url.includes("filters=unseen"), `no unseen filter expected, got: ${url}`);
+    });
+
+    it("listEmails rejects when both unseen and flagged are requested", async () => {
+        const client = new MailClient("mock-token");
+
+        await assert.rejects(
+            () => client.listEmails("mb", "fid", 50, 0, { unseen: true, flagged: true }),
+            /one filter at a time/i,
+        );
+        assert.strictEqual(fetchMock.calls().length, 0, "no API call should be made");
+    });
+
     it("listDrafts finds folder with role DRAFT", async () => {
         const client = new MailClient("mock-token");
 

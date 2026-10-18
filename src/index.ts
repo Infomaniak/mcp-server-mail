@@ -176,10 +176,14 @@ server.tool(
             .boolean()
             .describe("Only return starred/flagged emails in this folder (cannot be combined with unseen)")
             .optional(),
+        threaded: z
+            .boolean()
+            .describe("Group messages into conversations (default true). Set to false to list every message of the folder individually; first_message_uid is then that message's uid. In threaded mode, message_uids lists the uids of all thread messages that are in this folder.")
+            .optional(),
     },
-    async ({folder_id, mailbox_uuid, limit, offset, unseen, flagged}) => {
+    async ({folder_id, mailbox_uuid, limit, offset, unseen, flagged, threaded}) => {
         const uuid = mailbox_uuid || await mailClient.getMailboxUuid();
-        const emails = await mailClient.listEmails(uuid, folder_id, limit, offset, {unseen, flagged});
+        const emails = await mailClient.listEmails(uuid, folder_id, limit, offset, {unseen, flagged, threaded});
         return {
             content: [
                 {

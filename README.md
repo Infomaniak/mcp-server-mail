@@ -217,6 +217,32 @@ MCP Server for the Infomaniak Mail API.
     - Visit the [API Token page](https://manager.infomaniak.com/v3/ng/accounts/token/list)
     - Choose "workspace:mail" scopes
 
+### Usage with OpenCode
+
+Add the following to your `opencode.json`:
+
+#### NPX
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "mail": {
+        "type": "local",
+        "command": [
+          "npx",
+          "-y",
+          "@infomaniak/mcp-server-mail"
+        ],
+        "environment": {
+          "MAIL_TOKEN": "your-token"
+        }
+      }
+    }
+  }
+}
+```
+
 ### Usage with Claude Desktop
 
 Add the following to your `claude_desktop_config.json`:

@@ -243,6 +243,32 @@ Add the following to your `opencode.json`:
 }
 ```
 
+#### Docker
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "mail": {
+        "type": "local",
+        "command": [
+          "docker",
+          "run",
+          "-i",
+          "--rm",
+          "-e",
+          "MAIL_TOKEN",
+          "infomaniak/mcp-server-mail"
+        ],
+        "environment": {
+          "MAIL_TOKEN": "your-token"
+        }
+      }
+    }
+  }
+}
+```
+
 ### Usage with Claude Desktop
 
 Add the following to your `claude_desktop_config.json`:

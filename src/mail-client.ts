@@ -375,7 +375,7 @@ export class MailClient {
         folderId: string,
         limit: number = 50,
         offset: number = 0,
-        options: { unseen?: boolean; flagged?: boolean } = {},
+        options: { unseen?: boolean; flagged?: boolean; threaded?: boolean } = {},
     ): Promise<any[]> {
         if (options.unseen && options.flagged) {
             throw new Error(
@@ -386,24 +386,40 @@ export class MailClient {
         const filter = options.unseen ? "unseen" : options.flagged ? "starred" : null;
         const filterParam = filter ? `&filters=${filter}` : "";
 
+        const threadMode = options.threaded === false ? "off" : "on";
         const response = await this.apiRequest(
-            `/mail/${mailboxUuid}/folder/${folderId}/message?offset=${offset}&thread=on&severywhere=0&limit=${limit}${filterParam}`,
+            `/mail/${mailboxUuid}/folder/${folderId}/message?offset=${offset}&thread=${threadMode}&severywhere=0&limit=${limit}${filterParam}`,
         );
 
-        return (response.data?.threads || []).map((thread: any) => ({
-            thread_uid: thread.uid,
-            subject: thread.subject || "(no subject)",
-            from: thread.from?.map((f: any) => `${f.name} <${f.email}>`).join(", ") || "",
-            date: thread.date,
-            messages_count: thread.messages_count,
-            unseen_messages: thread.unseen_messages,
-            seen: (thread.unseen_messages ?? 0) === 0,
-            flagged: thread.flagged ?? thread.messages?.some((m: any) => m.flagged) ?? false,
-            preview: thread.messages?.[0]?.preview || "",
-            first_message_uid: thread.messages?.[0]?.uid?.split("@")[0] || null,
-            folder_id: thread.messages?.[0]?.folder_id || null,
-            folder: thread.messages?.[0]?.folder || null,
-        }));
+        return (response.data?.threads || []).map((thread: any) => {
+            const messages: any[] = thread.messages || [];
+            // A thread can span several folders (e.g. some replies were moved to
+            // another folder). Only the messages that live in the requested
+            // folder can be acted upon with this folder_id, so pick the
+            // representative message from those and expose all of their uids.
+            const inFolder = messages.filter(
+                (m: any) => !m.folder_id || m.folder_id === folderId,
+            );
+            const representative = inFolder[0] ?? messages[0];
+            return {
+                thread_uid: thread.uid,
+                subject: thread.subject || "(no subject)",
+                from: thread.from?.map((f: any) => `${f.name} <${f.email}>`).join(", ") || "",
+                date: thread.date,
+                messages_count: thread.messages_count,
+                messages_in_folder: inFolder.length,
+                unseen_messages: thread.unseen_messages,
+                seen: (thread.unseen_messages ?? 0) === 0,
+                flagged: thread.flagged ?? messages.some((m: any) => m.flagged) ?? false,
+                preview: representative?.preview || "",
+                first_message_uid: representative?.uid?.split("@")[0] || null,
+                message_uids: inFolder
+                    .map((m: any) => m.uid?.split("@")[0])
+                    .filter((uid: any) => !!uid),
+                folder_id: representative?.folder_id || null,
+                folder: representative?.folder || null,
+            };
+        });
     }
 
     async searchEmails(

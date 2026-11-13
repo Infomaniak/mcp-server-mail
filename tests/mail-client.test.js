@@ -191,6 +191,48 @@ describe("MailClient", () => {
         assert.ok(!result[0].first_message_uid.includes("@"), "uid must not contain @");
     });
 
+    it("listEmails picks the representative message from the requested folder", async () => {
+        const client = new MailClient("mock-token");
+        fetchMock.enqueue({
+            result: "success",
+            data: {
+                threads: [
+                    {
+                        uid: "thread-uid",
+                        subject: "[JIRA] Updates for ABC-1",
+                        from: [{ name: "Jira", email: "jira@test.com" }],
+                        date: "2024-01-03",
+                        messages_count: 3,
+                        unseen_messages: 0,
+                        messages: [
+                            { uid: "7@other-fid", folder_id: "other-fid", folder: "Jira", preview: "old" },
+                            { uid: "101@fid", folder_id: "fid", folder: "INBOX", preview: "new 1" },
+                            { uid: "102@fid", folder_id: "fid", folder: "INBOX", preview: "new 2" },
+                        ],
+                    },
+                ],
+            },
+        });
+
+        const result = await client.listEmails("mb", "fid");
+
+        assert.strictEqual(result[0].first_message_uid, "101");
+        assert.strictEqual(result[0].folder_id, "fid");
+        assert.strictEqual(result[0].folder, "INBOX");
+        assert.deepStrictEqual(result[0].message_uids, ["101", "102"]);
+        assert.strictEqual(result[0].messages_in_folder, 2);
+        assert.ok(fetchMock.calls()[0].url.includes("thread=on"));
+    });
+
+    it("listEmails can list messages individually with threaded=false", async () => {
+        const client = new MailClient("mock-token");
+        fetchMock.enqueue({ result: "success", data: { threads: [] } });
+
+        await client.listEmails("mb", "fid", 50, 0, { threaded: false });
+
+        assert.ok(fetchMock.calls()[0].url.includes("thread=off"));
+    });
+
     it("readEmail reads message with correct URL", async () => {
         const client = new MailClient("mock-token");
         fetchMock.enqueue({

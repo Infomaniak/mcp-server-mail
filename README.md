@@ -50,7 +50,9 @@ MCP Server for the Infomaniak Mail API.
      - `offset` (number): Pagination offset (default: 0)
      - `unseen` (boolean): Only return unread emails in this folder (cannot be combined with `flagged`)
      - `flagged` (boolean): Only return starred/flagged emails in this folder (cannot be combined with `unseen`)
-   - Returns: List of email threads with subject, from, date, seen status, flagged status, preview
+     - `threaded` (boolean): Group messages into conversations (default: `true`). Set to `false` to list every message of the folder on its own.
+   - Returns: List of email threads with subject, from, date, seen status, flagged status, preview, `first_message_uid`, `folder_id`, `folder`, `message_uids` and `messages_in_folder`
+   - Note: A conversation can contain messages from several folders. `first_message_uid`, `preview`, `folder_id` and `folder` describe the first message of the conversation that is in the requested folder (or the first message of the conversation, if none of its messages is in that folder). `message_uids` lists the uids of all messages of the conversation that are in the requested folder, and `messages_in_folder` is their count. Pass `message_uids` directly to `mail_mark_email`, `mail_flag_email` or `mail_move_email`, with the same folder as source, to act on every message of the conversation in that folder.
 
 7. `mail_read_email`
    - Required inputs:
